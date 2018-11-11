@@ -4,10 +4,11 @@ const BlockChainEventHandler = require("./blockchainEventHandler");
 const MessageHandler = require("./messageHandler");
 const BlockchainProxy = require('./blockchainProxy');
 const EventManager = require('./eventManager');
+const Ecsign = require('./utils/ecsign');
 
-const paymentContractAddress = '0x0754E5a91e892a8331C402937372B6659148a3b3';
+const paymentContractAddress = '0x5167553b547973487Aeaf2413B68f290d5266FE0';
 const paymentContractAbi = require('./Payment_ETH.json')
-const gameContractAddress = '0xe5885F56b47137cB245168Ca3077270Bb55E127d';
+const gameContractAddress = '0xE44C8bA910A179A801267442224F9B7f3065E0ec';
 const gameContractAbi = require('./Dice_SC.json')
 
 // console.log(paymentContractAbi);
@@ -25,6 +26,9 @@ class SCClient {
       gameContractAbi: gameContractAbi.abi
     }
 
+    this.from = fromAddress;
+    this.privateKey = privateKey;
+
     this.eventList = {};
     this.eventManager = new EventManager(this.eventList);
 
@@ -39,25 +43,22 @@ class SCClient {
   }
 
   initMessageHandler(socket){
+    this.socket = socket;
     new MessageHandler(socket, this).start();
   }
 
-
-  findPartnerSocket(partnerAddress) {
-    return "http://localhost";
-  }
 
   /**
    * 开通道操作，只能由用户端调用，用户主动与服务器开通道
    * @param  partnerAddress 对方地址
    * @param  depositAmount  预存到通道的金额
    */
-  openChannel(partnerAddress, depositAmount) {
+  async openChannel(partnerAddress, depositAmount) {
     //send openchannel request to blockchain
 
-    //Connect socket to the server.
+    let settle_window = 6;
+    return await this.blockchainProxy.openChannel(this.from, partnerAddress, settle_window, depositAmount);
 
-    return new Promise((resolve, reject) => {});
   }
 
   /**
@@ -65,8 +66,8 @@ class SCClient {
    * @param  partnerAddress 对方地址
    * @param  depositAmount  存款金额
    */
-  deposit(partnerAddress, depositAmount) {
-    return new Promise((resolve, reject) => {});
+  async deposit(partnerAddress, depositAmount) {
+    return await this.blockchainProxy.deposit(this.from, partnerAddress, depositAmount);
   }
 
   /**
@@ -77,7 +78,14 @@ class SCClient {
    * @param  betValue       下注金额
    * @param  randomSeed     选择随机数
    */
-  startBet(partnerAddress, betMask, modulo, betValue, randomSeed = "") {
+  async startBet(partnerAddress, betMask, modulo, betValue, randomSeed = "") {
+
+    //generate BetRequest Message
+
+    // find socket by partnerAddress
+
+    // then send BetRequest to partner
+    
     return new Promise((resolve, reject) => {});
   }
 
@@ -85,8 +93,41 @@ class SCClient {
    * 关闭通道
    * @param partnerAddress 对方地址
    */
-  closeChannel(partnerAddress) {
-    return new Promise((resolve, reject) => {});
+  async closeChannel(partnerAddress) {
+
+    //fetch channel Hash
+    let balanceHash = '';
+    let nonce = '';
+    let signature = '';
+
+    //强制关
+    return await this.blockchainProxy.closeChannel(partnerAddress, balanceHash, nonce, signature);
+  }
+
+  async closeChannelCooperative(partnerAddress){
+
+
+    let channelIdentifier = await this.blockchainProxy.getChannelIdentifier(partnerAddress);
+    let channel = await this.dbhelper.getChannel(channelIdentifier);
+
+    let localBalance = channel.localBalance;
+    let remoteBalance = channel.remoteBalance;
+    
+    let shaMessage = Ecsign.mySha3(this.web3, paymentContractAddress, channelIdentifier, this.from, localBalance, partnerAddress, remoteBalance);
+    let signature = Ecsign.myEcsign(this.web3, shaMessage, this.privateKey);
+    
+    this.socket.emit('CooperativeSettleRequest', {
+      paymentContract: paymentContractAddress,
+      channelIdentifier,
+      p1: this.from,
+      p1Balance: localBalance,
+      p2: partnerAddress,
+      p2Balance: remoteBalance,
+      p1Signature: signature
+    });
+
+    return true;
+
   }
 
   
@@ -94,21 +135,20 @@ class SCClient {
     return await this.dbhelper.getChannels();
   }
 
-  getChannel(partnerAddress) {
+  async getChannel(partnerAddress) {
     return {};
   }
 
-  getAllBets(condition, offset, limit) {
-    return [];
+  async getAllBets(condition, offset, limit) {
+    return await this.dbhelper.getBets();
   }
 
-  getBetById(betId) {
-    return {};
+  async getBetById(betId) {
+    return await this.dbhelper.getBet(betId)
   }
 
   on(event, callback){
     this.eventList[event] = callback; 
-
     return this;
 
   }

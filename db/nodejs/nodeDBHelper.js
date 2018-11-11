@@ -15,6 +15,7 @@ class NodeDBHelper extends DBHelper {
     }
 
     async addChannel(channel) {
+        console.log('[NodeDBHelper: AddChannel]', channel);
         return await this.model.Channel.create(channel);
     }
 

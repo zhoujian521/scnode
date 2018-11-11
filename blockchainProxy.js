@@ -1,4 +1,6 @@
 // Payment Contract Methods:
+const Tx = require('ethereumjs-tx');
+
 
 class BlockchainProxy {
   constructor(web3, config) {
@@ -67,7 +69,7 @@ class BlockchainProxy {
   async deposit(participant, partner, amount) {
     let data = this.paymentContract
       .methods
-      .deposit(participant, partner).encodeABI();
+      .setTotalDeposit(participant, partner).encodeABI();
     return await this.sendTransaction(
       this.paymentContractAddress,
       amount,
@@ -126,24 +128,22 @@ class BlockchainProxy {
   }
 
   async cooperativeSettle(
-    channelIdentifier,
-    participant1,
+    participant1_address,
     participant1_balance,
-    participant2,
+    participant2_address,
     participant2_balance,
-    signature
+    participant1_signature,
+    participant2_signature
   ) {
-    let data = this.paymentContract
-      .methods
+    let data = this.paymentContract.methods
       .cooperativeSettle(
-        channelIdentifier,
-        participant1,
+        participant1_address,
         participant1_balance,
-        participant2,
+        participant2_address,
         participant2_balance,
-        signature
-      )
-      .encodeABI();
+        participant1_signature,
+        participant2_signature
+      ).encodeABI();
     return await this.sendTransaction(this.paymentContractAddress, 0, data);
   }
 
@@ -156,6 +156,12 @@ class BlockchainProxy {
   async getChannels(channelIdentifier) {
     return await this.paymentContract.methods
       .channels(channelIdentifier)
+      .call({ from: this.from });
+  }
+
+  async getChannelIdentifier(partnerAddress) {
+    return await this.paymentContract.methods
+      .getChannelIdentifier(partnerAddress, this.from)
       .call({ from: this.from });
   }
 

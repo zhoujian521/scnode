@@ -30,8 +30,8 @@ let dbprovider = {
   }
 };
 
-let address = '';
-let privateKey = '';
+let address = '0x633177eeE5dB5a2c504e0AE6044d20a9287909f9';
+let privateKey = '4E9866ADC11E202E6B47CC087B3776B1F460CECD53086007538FB2D207FE54A6';
 let scclient = new SCClient(ethWSUrl, dbprovider, address, privateKey);
 
 
@@ -42,6 +42,9 @@ io.on("connection", function(socket) {
 });
 
 
+
+
+
 async function main(){
 
   let channels = await scclient.getAllChannels();
@@ -49,6 +52,23 @@ async function main(){
 
   let gameAddress = await scclient.blockchainProxy.getGameAddress();
   console.log(gameAddress);
+
+  let partnerAddress = '0x56d77fcb5e4Fd52193805EbaDeF7a9D75325bdC0';
+  let depositAmount = 0.01 * 1e18;
+
+  scclient.on('ChannelOpen', async (channel)=>{
+    console.log('ChannelOpen watched');
+
+    if(channel.partner == address) return;
+    // await scclient.deposit(partnerAddress, depositAmount);
+
+  });
+
+
+
+  // await scclient.openChannel(partnerAddress, depositAmount);
+
+  // 
 
 
 

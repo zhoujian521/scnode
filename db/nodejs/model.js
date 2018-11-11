@@ -3,7 +3,8 @@ const Sequelize = require("sequelize");
 module.exports = (sequelize) => {
 
   const Channel = sequelize.define("channel", {
-    channelId: Sequelize.STRING,
+    channelId: { type: Sequelize.STRING, primaryKey: true },
+    settleTimeout: Sequelize.STRING,
     partner: Sequelize.STRING,
     totalDeposit: Sequelize.STRING,
     partnerTotalDeposit: Sequelize.STRING,
