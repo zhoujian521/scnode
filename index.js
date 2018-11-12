@@ -5,6 +5,11 @@ const MessageHandler = require("./messageHandler");
 const BlockchainProxy = require('./blockchainProxy');
 const EventManager = require('./eventManager');
 const Ecsign = require('./utils/ecsign');
+const MessageGenerator = require('./utils/messageGenerator');
+const MessageValidator = require('./utils/messageValidator');
+const RandomUtil = require('./utils/random');
+const Constants = require('./Constants');
+const GameRule = require('./gameRule');
 
 const paymentContractAddress = '0x5167553b547973487Aeaf2413B68f290d5266FE0';
 const paymentContractAbi = require('./Payment_ETH.json')
@@ -35,6 +40,8 @@ class SCClient {
     this.web3 = new Web3(Web3.givenProvider || wsUrl);
     this.dbhelper = dbfactory.initDBHelper(dbprovider);
     this.blockchainProxy = new BlockchainProxy(this.web3, contractInfo);
+    this.messageGenerator = new MessageGenerator(this.web3, fromAddress, privateKey, gameContractAddress, paymentContractAddress);
+    this.messageValidator = new MessageValidator(this.web3, gameContractAddress, paymentContractAddress);
     
 
     // 启动blockchainEventHandler 
@@ -55,7 +62,6 @@ class SCClient {
    */
   async openChannel(partnerAddress, depositAmount) {
     //send openchannel request to blockchain
-
     let settle_window = 6;
     return await this.blockchainProxy.openChannel(this.from, partnerAddress, settle_window, depositAmount);
 
@@ -80,17 +86,46 @@ class SCClient {
    */
   async startBet(partnerAddress, betMask, modulo, betValue, randomSeed = "") {
 
-    //generate BetRequest Message
+    let channelIdentifier = await this.blockchainProxy.getChannelIdentifier(partnerAddress);
 
-    // find socket by partnerAddress
+    let round = await this.dbhelper.getLatestRound(channelIdentifier);
+
+    console.log('new Round is ', round);
+
+    //generate Random from seed
+    let ra = RandomUtil.generateRandomFromSeed(randomSeed);
+    let hashRa = this.web3.utils.sha3(ra);
+    //generate BetRequest Message
+    let betRequestMessage = this.messageGenerator.generateBetRequest(channelIdentifier, round, betMask, modulo, this.from, partnerAddress, hashRa);
+    betRequestMessage.value = betValue;
+
+    console.log('betRequestMessage', betRequestMessage);
+
+    let winAmount = GameRule.getPossibleWinAmount(betMask, modulo, betValue);
+    //save Bet to Database
+    await this.dbhelper.addBet({
+      gameContractAddress: betRequestMessage.gameContractAddress,
+      channelId: channelIdentifier,
+      round: round,
+      betMask,
+      modulo,
+      value: betValue,
+      winAmount,
+      positiveA: this.from,
+      hashRa,
+      ra,
+      signatureA: betRequestMessage.signatureA,
+      negativeB: betRequestMessage.negativeB,
+      status: Constants.BET_INIT
+    });
 
     // then send BetRequest to partner
-    
-    return new Promise((resolve, reject) => {});
+    await this.socket.emit('BetRequest', betRequestMessage);
+    return true;
   }
 
   /**
-   * 关闭通道
+   * 强制关闭通道
    * @param partnerAddress 对方地址
    */
   async closeChannel(partnerAddress) {
@@ -104,6 +139,10 @@ class SCClient {
     return await this.blockchainProxy.closeChannel(partnerAddress, balanceHash, nonce, signature);
   }
 
+  /**
+   * 协商关闭通道
+   * @param partnerAddress 
+   */
   async closeChannelCooperative(partnerAddress){
 
 

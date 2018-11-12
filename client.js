@@ -54,15 +54,19 @@ async function main(){
 
   let partnerAddress = '0x633177eeE5dB5a2c504e0AE6044d20a9287909f9';
   let depositAmount = 0.01 * 1e18;
-  await scclient.openChannel(partnerAddress, depositAmount);
+  // await scclient.openChannel(partnerAddress, depositAmount);
+  // return;
 
   // await scclient.deposit(partnerAddress, depositAmount);
 
   // await scclient.blockchainProxy.testMonitorEvent();
 
-  scclient.on('ChannelOpen', async (channel)=>{
-    await scclient.closeChannelCooperative(partnerAddress);
-  });
+  // scclient.on('ChannelOpen', async (channel)=>{
+    // await scclient.closeChannelCooperative(partnerAddress);
+  // });
+
+
+  scclient.startBet(partnerAddress, 1, 2, 1e14, 'abc');
 
 
 

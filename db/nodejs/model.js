@@ -14,36 +14,47 @@ module.exports = (sequelize) => {
   });
 
   const Transfer = sequelize.define("tansfer", {
-    transferId: Sequelize.INTEGER,
+    transferId: { type: Sequelize.INTEGER, primaryKey: true, autoIncrement: true },
+    channelId: Sequelize.STRING,
     balanceHash: Sequelize.STRING,
     transferred_amount: Sequelize.STRING,
     locked_amount: Sequelize.STRING,
-    locks_root: Sequelize.STRING,
+    round: Sequelize.INTEGER,
     nonce: Sequelize.INTEGER,
     owned: Sequelize.TINYINT,
     signature: Sequelize.STRING
   });
 
   const Bet = sequelize.define("bet", {
-    betId: Sequelize.INTEGER,
-    round: Sequelize.STRING,
+    betId: { type: Sequelize.INTEGER, primaryKey: true, autoIncrement: true },
+    gameContractAddress: Sequelize.STRING,
+    channelId: Sequelize.STRING,
+    round: Sequelize.INTEGER,
     betMask: Sequelize.STRING,
     modulo: Sequelize.INTEGER,
     value: Sequelize.STRING,
+    positiveA: Sequelize.STRING,
     hashRa: Sequelize.STRING,
     ra: Sequelize.STRING,
     signatureA: Sequelize.STRING,
+    negativeB: Sequelize.STRING,
     rb: Sequelize.STRING,
     signatureB: Sequelize.STRING,
+    winner: Sequelize.STRING,
     winAmount: Sequelize.STRING,
+    status: Sequelize.INTEGER
   });
 
   const Payment = sequelize.define("payment", {
-    paymentId: Sequelize.INTEGER,
+    paymentId: {
+      type: Sequelize.INTEGER,
+      primaryKey: true,
+      autoIncrement: true
+    },
     betId: Sequelize.INTEGER,
     from: Sequelize.STRING,
     to: Sequelize.STRING,
-    value: Sequelize.STRING,
+    value: Sequelize.STRING
   });
 
   Channel.sync();

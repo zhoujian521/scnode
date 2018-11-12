@@ -151,9 +151,9 @@ class BlockChainEventHandler {
 
     let closedBySelf = closing == this.from;
 
-    if(closedBySelf){
+    if(!closedBySelf){
       // submit balance proof to blockchain, get BalanceProof from local DB
-      let remoteBalanceProof = '';
+      let remoteBalanceProof = await this.dbhelper.getCurrentTransfer(channel_identifier);
       await this.blockChainProxy.updateBalanceProof(remoteBalanceProof);
     }else{
       //update database here.
