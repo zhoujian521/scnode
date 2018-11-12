@@ -10,7 +10,7 @@ var socket = io("http://localhost");
 
 
 //rinkeby geth server
-let ethWSUrl = 'ws://18.179.206.91:8546';
+let ethWSUrl = 'ws://54.250.21.165:8546';
 
 let dbprovider = {
   type: 'node',

@@ -79,6 +79,8 @@ class BlockChainEventHandler {
           partnerTotalDeposit: 0,
           localBalance: amount,
           remoteBalance: 0,
+          localLockedAmount: 0,
+          remoteLockedAmount: 0,
           status: Constants.CHANNEL_OPENED
         };
 
@@ -91,6 +93,8 @@ class BlockChainEventHandler {
           partnerTotalDeposit: amount,
           localBalance: 0,
           remoteBalance: amount,
+          localLockedAmount: 0,
+          remoteLockedAmount: 0,
           status: Constants.CHANNEL_OPENED
         };
       }

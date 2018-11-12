@@ -10,6 +10,8 @@ module.exports = (sequelize) => {
     partnerTotalDeposit: Sequelize.STRING,
     localBalance: Sequelize.STRING,
     remoteBalance: Sequelize.STRING,
+    localLockedAmount: Sequelize.STRING,
+    remoteLockedAmount: Sequelize.STRING,
     status: Sequelize.TINYINT
   });
 
