@@ -1,37 +1,101 @@
+const Ecsign = require("./ecsign");
 
 class MessageValidator {
-    constructor(web3, gameContractAddress, paymentContractAddress) {
-        this.web3 = web3;
-        this.gameContractAddress = gameContractAddress;
-        this.paymentContractAddress = paymentContractAddress;
-    }
+  constructor(web3, gameContractAddress, paymentContractAddress) {
+    this.web3 = web3;
+    this.gameContractAddress = gameContractAddress;
+    this.paymentContractAddress = paymentContractAddress;
+  }
 
-    checkBetRequest(message, addressA) {
-        let { channelIdentifier, round, betMask, modulo, positiveA, negativeB, hashRa, signatureA } = message;
+  checkBetRequest(message, addressA) {
+    let {
+      channelIdentifier,
+      round,
+      betMask,
+      modulo,
+      positiveA,
+      negativeB,
+      hashRa,
+      signatureA
+    } = message;
 
+    let messagehash = this.web3.utils.soliditySha3(
+      this.gameContractAddress,
+      channelIdentifier,
+      round,
+      betMask,
+      modulo,
+      positiveA,
+      negativeB,
+      hashRa
+    );
 
-        return true;
+    let isValid = Ecsign.checkSignature(messagehash, signatureA, addressA);
+    return isValid;
+  }
 
-    }
+  checkLockedTransfer(message, address) {
+    let { channelIdentifier, balanceHash, nonce, signature } = message;
+    let messagehash = this.web3.utils.soliditySha3(
+      this.paymentContractAddress,
+      channelIdentifier,
+      balanceHash,
+      nonce
+    );
 
-    checkLockedTransfer(message, address) {
-        let { channelIdentifier, balanceHash, nonce, signature } = message;
+    let isValid = Ecsign.checkSignature(messagehash, signature, address);
+    return isValid;
+  }
 
-        return true;
-    }
+  checkBetResponse(message, addressB) {
+    let {
+      channelIdentifier,
+      round,
+      betMask,
+      modulo,
+      positiveA,
+      negativeB,
+      hashRa,
+      signatureA,
+      Rb,
+      signatureB
+    } = message;
+    let messagehash = this.web3.utils.soliditySha3(
+      this.gameContractAddress,
+      channelIdentifier,
+      round,
+      betMask,
+      modulo,
+      positiveA,
+      negativeB,
+      hashRa,
+      signatureA,
+      Rb
+    );
 
-    checkBetResponse(message, addressB) {
-        let { channelIdentifier, round, betMask, modulo, positiveA, negativeB, hashRa, signatureA, Rb, signatureB } = message;
+    let isValid = Ecsign.checkSignature(messagehash, signatureB, addressB);
+    return isValid;
+  }
 
-        return true;
-    }
+  checkPreimage(message, hashRa) {
+    let { channelIdentifier, round, ra } = message;
+    let newHashRa = this.web3.utils.sha3(ra);
+    let isValid = newHashRa == hashRa;
+    console.log("checkPreimage", hashRa, newHashRa);
+    return isValid;
+  }
 
-    checkPreimage(message, address) {
-        let { channelIdentifier, round, ra } = message;
+  checkCooperativeSettleRequest(message, address){
+    let {channelIdentifier, p1, p1Balance, p2, p2Balance, signature} = message;
 
-        return true;
-    }
+    let messagehash = this.web3.utils.soliditySha3(this.paymentContractAddress, channelIdentifier, p1, p1Balance, p2, p2Balance);
+
+    console.log("checkCooperativeSettleRequest messagehash is ", messagehash);
+
+    let isValid = Ecsign.checkSignature(messagehash, signature, address);
+    return isValid;
+  }
+
 }
-
 
 module.exports = MessageValidator;

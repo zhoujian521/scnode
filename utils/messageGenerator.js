@@ -127,6 +127,36 @@ class messageGenerator {
       ra
     };
   }
+
+  genreateCooperativeSettleRequest(channelIdentifier, positiveA, balanceA, negativeB, balanceB){
+    let messagehash = this.web3.utils.soliditySha3(
+      this.paymentContractAddress,
+      channelIdentifier,
+      positiveA,
+      balanceA,
+      negativeB,
+      balanceB
+    );
+
+    console.log("genreateCooperativeSettleRequest messagehash is ", messagehash);
+
+    messagehash = new Buffer(messagehash.substr(2), "hex");
+    let signature = Ecsign.myEcsignToHex(
+      this.web3,
+      messagehash,
+      this.privateKeyBuffer
+    ); 
+
+    return {
+      paymentContractAddress: this.paymentContractAddress,
+      channelIdentifier,
+      p1: positiveA,
+      p1Balance: balanceA,
+      p2: negativeB,
+      p2Balance: balanceB,
+      signature: signature
+    };
+  }
 }
 
 module.exports = messageGenerator;

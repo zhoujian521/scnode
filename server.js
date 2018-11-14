@@ -10,12 +10,12 @@ let ethWSUrl = 'ws://54.250.21.165:8546';
 let dbprovider = {
   type: 'node',
   config: {
-    database: 'test',
-    username: 'user',
-    password: 'user',
+    database: 'sc_server',
+    username: 'root',
+    password: 'abc321456',
     dialect: {
       host: 'localhost',
-      dialect: 'sqlite',
+      dialect: 'mysql',
       operatorsAliases: false,
       pool: {
         max: 5,
@@ -25,7 +25,7 @@ let dbprovider = {
       },
 
       // SQLite only
-      storage: './server.sqlite'
+      // storage: './server.sqlite'
     }
   }
 };
@@ -42,10 +42,13 @@ io.on("connection", function(socket) {
 });
 
 
+// scclient.setAutoRespond(false);
 
 
 
 async function main(){
+
+  await scclient.init();
 
   let channels = await scclient.getAllChannels();
   console.log(channels);
@@ -54,13 +57,13 @@ async function main(){
   console.log(gameAddress);
 
   let partnerAddress = '0x56d77fcb5e4Fd52193805EbaDeF7a9D75325bdC0';
-  let depositAmount = 0.01 * 1e18;
+  let depositAmount = 0.1 * 1e18;
 
   scclient.on('ChannelOpen', async (channel)=>{
     console.log('ChannelOpen watched');
 
     if(channel.partner == address) return;
-    // await scclient.deposit(partnerAddress, depositAmount);
+    await scclient.deposit(partnerAddress, depositAmount);
 
   });
 

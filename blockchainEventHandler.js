@@ -116,6 +116,8 @@ class BlockChainEventHandler {
     let channel = await this.dbhelper.getChannel(channel_identifier);
     if (!channel) return;
 
+    // query blockchain to verify event
+
     let newAttr = {};
     if(participant == this.from){
       let delta = this.web3.utils.toBN(total_deposit)
@@ -252,10 +254,13 @@ class BlockChainEventHandler {
       return;
     }
     let { channelIdentifier, participant1_balance, participant2_balance } = event.returnValues;
+    let channel = await this.dbhelper.getChannel(channelIdentifier);
 
     let status = Constants.CHANNEL_UNLOCKFINISHED;
     console.log("after cooperativesettle, will update channel");
     await this.dbhelper.updateChannel(channelIdentifier, { status });
+
+    this.eventManager.sendCooperativeSettled(channel);
   }
 
 

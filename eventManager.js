@@ -19,34 +19,41 @@ class eventManager {
   }
 
   async sendChannelOpen(channel) {
+    console.log("sendChannelOpen", this.eventList);
+
     this.eventList.ChannelOpen && this.eventList.ChannelOpen(channel);
   }
   async sendChannelSettled() {
     this.eventList.ChannelSettled && this.eventList.ChannelSettled(channel);
   }
 
-  sendChannelClosed(channel) {
+  async sendChannelClosed(channel) {
     this.eventList.ChannelSettled && this.eventList.ChannelSettled(channel);
   }
 
-  sendBalanceProofUpdated(channel) {
+  async sendBalanceProofUpdated(channel) {
     this.eventList.BalanceProofUpdated &&
       this.eventList.BalanceProofUpdated(channel);
   }
 
-  sendBetUnlocked(channel, bet) {
+  async sendCooperativeSettled(channel) {
+    this.eventList.CooperativeSettled &&
+      this.eventList.CooperativeSettled(channel);
+  }
+  
+  async sendBetUnlocked(channel, bet) {
     this.eventList.BetUnlocked && this.eventList.BetUnlocked(channel, bet);
   }
 
-  sendBetPlaced(channel, bet) {
+  async sendBetPlaced(channel, bet) {
     this.eventList.BetPlaced && this.eventList.BetPlaced(channel, bet);
   }
 
-  sendBetSettled(channel, bet) {
+  async sendBetSettled(channel, bet) {
     this.eventList.BetSettled && this.eventList.BetSettled(channel, bet);
   }
 
-  sendPaymentReceived(channel, bet) {
+  async sendPaymentReceived(channel, bet) {
     this.eventList.PaymentReceived &&
       this.eventList.PaymentReceived(channel, bet);
   }

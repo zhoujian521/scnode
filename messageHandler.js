@@ -36,41 +36,55 @@ class MessageHandler {
       .on("BetResponse", this.onBetResponse.bind(this))
       .on("Preimage", this.onPreimage.bind(this))
       .on("DirectTransfer", this.onDirectTransfer.bind(this))
+      .on("DirectTransferR", this.onDirectTransferR.bind(this))
+      .on("BetSettle", this.onBetSettle.bind(this))
       .on("CooperativeSettleRequest", this.onCooperativeSettle.bind(this));
   }
 
   async onBetRequest(message) {
     // 检测本地数据 和 BetRequest进行比对
     // 如果符合条件，给对方发送LockedTransfer
+    console.time('onBetRequest');
     console.log('BetRequest Received: ', message);
 
     //check BetRequest
     let { gameContractAddress, channelIdentifier, round, betMask, modulo, value, positiveA, hashRa, signatureA } = message;
     let channel = await this.scclient.dbhelper.getChannel(channelIdentifier);
-    if(!channel) return;
+    if (!channel || channel.status != Constants.CHANNEL_OPENED) return;
 
-    if(!this.messageValidator.checkBetRequest(message, channel.parter)){
+    if(!this.messageValidator.checkBetRequest(message, channel.partner)){
       console.log("check Message BetRequest failed");
       return;
     }
     
 
-    let bet = await this.scclient.dbhelper.getBetByChannel({channelId: channelIdentifier, round})
-    if(bet){
-      console.error('receive betRequest on exist round again');
+    let bet = await this.scclient.dbhelper.getBetByChannel({ channelId: channelIdentifier });
+    if (bet != null && bet.status != Constants.BET_FINISH) {
+      console.log("There are unfinished bet, can not start new bet");
       return;
     }
-  
 
     let winAmount = GameRule.getPossibleWinAmount(betMask, modulo, value);
     //save bet to database
     bet = { gameContractAddress, channelId: channelIdentifier, round, betMask, modulo, value, positiveA, negativeB: this.scclient.from, hashRa, signatureA, winAmount, status: Constants.BET_INIT };
     await this.scclient.dbhelper.addBet(bet);
 
-    let lockedTransfer = await this.getLockedTransfer(channelIdentifier, winAmount, round);
 
-    //send LockedTransfer to opposite
-    this.socket.emit('LockedTransfer', lockedTransfer);
+    if (this.scclient.autoRespondB) {
+      let lockedTransfer = await this.getLockedTransfer(channelIdentifier, winAmount, round);
+
+      //send LockedTransfer to opposite
+
+      bet = await this.scclient.dbhelper.getBetByChannel({
+        channelId: channelIdentifier,
+        round
+      });
+      await this.scclient.dbhelper.updateBet(bet.betId, {
+        status: Constants.BET_LOCK_ONE
+      });
+      this.socket.emit("LockedTransfer", lockedTransfer);
+    }
+    console.timeEnd('onBetRequest');
 
   }
 
@@ -196,16 +210,17 @@ class MessageHandler {
 
   async onLockedTransfer(message) {
     // 检测是否符合条件, 如果符合条件 给对方发送LockedTransferR
+    console.time('onLockedTransfer');
     console.log('LockedTransfer Received: ', message);
 
     let {channelIdentifier, balanceHash, nonce, signature } = message;
 
     //check LockedTransfer
     let channel = await this.scclient.dbhelper.getChannel(channelIdentifier);
-    if(!channel) return;
+    if (!channel || channel.status != Constants.CHANNEL_OPENED) return;
 
     let bet = await this.scclient.dbhelper.getBetByChannel({ channelId: channelIdentifier });
-    if(!bet) return;
+    if (!bet || bet.status != Constants.BET_INIT) return;
 
     console.log('bet is', bet);
 
@@ -214,7 +229,7 @@ class MessageHandler {
     }
     let round = bet.round;
 
-    if(!this.messageValidator.checkLockedTransfer(message, channel.parter)){
+    if(!this.messageValidator.checkLockedTransfer(message, channel.partner)){
       console.error("check Message LockedTransfer failed");
       return;
     }
@@ -233,18 +248,21 @@ class MessageHandler {
 
     await this.scclient.dbhelper.updateBet(bet.betId, { status: Constants.BET_LOCK_ONE });
 
-    //generate LockedTransfer
-    let lockedTransfer = await this.getLockedTransfer(channelIdentifier, bet.value, round);
-    
-    //send LockedR to opposite
-    this.socket.emit('LockedTransferR', lockedTransfer);
-
+    if(this.scclient.autoRespondA){
+      //generate LockedTransfer
+      let lockedTransfer = await this.getLockedTransfer(channelIdentifier, bet.value, round);
+      //send LockedR to opposite
+      await this.scclient.dbhelper.updateBet(bet.betId, { status: Constants.BET_LOCK_TWO });
+      this.socket.emit('LockedTransferR', lockedTransfer);
+    }
+    console.timeEnd('onLockedTransfer');
 
   }
 
   async onLockedTransferR(message) {
     // 检测是否符合条件
     // 发送BetResponse
+    console.time('onLockedTransferR');
     console.log('LockedTransferR Received: ', message);
 
     //check LockedTransferR
@@ -252,18 +270,18 @@ class MessageHandler {
 
     //check LockedTransfer
     let channel = await this.scclient.dbhelper.getChannel(channelIdentifier);
-    if(!channel) return;
+    if (!channel || channel.status != Constants.CHANNEL_OPENED) return;
 
     let bet = await this.scclient.dbhelper.getBetByChannel({ channelId: channelIdentifier });
     console.log('bet is ', bet);
-    if(!bet) return;
+    if (!bet || bet.status != Constants.BET_LOCK_ONE) return;
 
     if(bet.negativeB != this.scclient.from){
       return;
     }
 
 
-    if (!this.messageValidator.checkLockedTransfer(message, channel.parter)) {
+    if (!this.messageValidator.checkLockedTransfer(message, channel.partner)) {
       console.log("check Message LockedTransferR failed");
       return;
     }
@@ -281,29 +299,36 @@ class MessageHandler {
     let oppositeTransfer = { channelId: channelIdentifier, balanceHash, transferred_amount, locked_amount, round, nonce, signature, owned: 1 };
     await this.scclient.dbhelper.addTransfer(oppositeTransfer);
     await this.updateBalance(channelIdentifier, 0, bet.value, false);
+    await this.scclient.dbhelper.updateBet(bet.betId, { status: Constants.BET_LOCK_TWO });
+      
 
-    //generate Rb 
-    let rb = RandomUtil.generateRandomFromSeed("hello");
-    const betResponse = this.scclient.messageGenerator.generateBetResponse(channelIdentifier, round, bet.betMask, bet.modulo, bet.positiveA, bet.negativeB, bet.hashRa, bet.signatureA, rb);
+    if(this.scclient.autoRespondB){
+      //generate Rb 
+      let rb = RandomUtil.generateRandomFromSeed("hello");
+      const betResponse = this.scclient.messageGenerator.generateBetResponse(channelIdentifier, round, bet.betMask, bet.modulo, bet.positiveA, bet.negativeB, bet.hashRa, bet.signatureA, rb);
+      // update bet info
+      await this.scclient.dbhelper.updateBet(bet.betId, { rb, signatureB: betResponse.signatureB, status: Constants.BET_LOCK_TWO });
+      //send BetResponse to opposite
+      await this.scclient.dbhelper.updateBet(bet.betId, { status: Constants.BET_START });
+      console.log(this.eventManager.sendBetPlaced);
+      this.eventManager.sendBetPlaced(channel, bet);
+      this.socket.emit('BetResponse', betResponse);
+    }
 
-    // update bet info
-    await this.scclient.dbhelper.updateBet(bet.betId, { rb, signatureB: betResponse.signatureB, status: Constants.BET_LOCK_TWO });
-
-    //send BetResponse to opposite
-    this.socket.emit('BetResponse', betResponse);
-
+    console.timeEnd('onLockedTransferR');
   }
 
   async onBetResponse(message) {
     // 检测是否符合条件
     // 判断输赢 赢：发送Preimage， 输：发送Preimage+DirectTransfer
+    console.time('onBetResponse');
     console.log('BetResponse Received: ', message);
 
     // check BetResponse
     let { channelIdentifier, round, Rb: rb, betMask, modulo, positiveA, negativeB, hashRa, signatureA, signatureB } = message;
 
     let channel = await this.scclient.dbhelper.getChannel(channelIdentifier);
-    if(!channel) return;
+    if (!channel || channel.status != Constants.CHANNEL_OPENED) return;
 
     let bet = await this.scclient.dbhelper.getBetByChannel({
       channelId: channelIdentifier,
@@ -315,94 +340,96 @@ class MessageHandler {
       hashRa,
       signatureA
     });
-    if(!bet) return;
+    if (!bet || bet.status != Constants.BET_LOCK_TWO) return;
 
-    if ( bet.positiveA != this.scclient.from) {
-      return;
-    }
+    if (bet.positiveA != this.scclient.from) { return; }
 
-    if (!this.messageValidator.checkBetResponse(message, channel.parter)) {
+    if (!this.messageValidator.checkBetResponse(message, channel.partner)) {
       console.log("check Message BetResponse failed");
       return;
     }
 
     console.log("bet is", bet);
     // check Win or Lose
-    let isWinner = GameRule.winOrLose(betMask, modulo, bet.ra, rb, true);
-
-    // send Preimage to opposite
-    const preimageMessage = this.scclient.messageGenerator.generatePreimage(channelIdentifier, round, bet.ra);
-    await this.socket.emit('Preimage', preimageMessage);
+    let isWinner = GameRule.winOrLose(this.web3, betMask, modulo, bet.ra, rb, true);
 
     // update Bet in database
-    await this.scclient.dbhelper.updateBet(bet.betId, {
-      rb,
-      signatureB,
-      winner: isWinner,
-      status: Constants.BET_START
-    });
+    await this.scclient.dbhelper.updateBet(bet.betId, { rb, signatureB, winner: isWinner, status: Constants.BET_START });
+    console.log(this.eventManager.sendBetPlaced);
+    this.eventManager.sendBetPlaced(channel, bet);
 
-    // If lose send DirectTransfer to opposite
-    if(!isWinner){
-      const directTransfer = await this.getDirectTransfer(channelIdentifier, bet.value, bet.value, round);
-      console.log('Lose the bet, will send direct transfer to oppsoite', directTransfer);
-      this.socket.emit('DirectTransfer', directTransfer);
-      await this.scclient.dbhelper.addPayment({
-        betId: bet.betId,
-        from: this.scclient.from,
-        to: channel.parter,
-        value: bet.value
-      });
-    } else {
-      const directTransfer = await this.getDirectTransfer(channelIdentifier, 0, bet.value, round);
-      console.log('Win the bet, will cancel locked transfer', directTransfer);
-      this.socket.emit('DirectTransfer', directTransfer);
+    if(this.scclient.autoRespondA){
+    // send Preimage to opposite
+      const preimageMessage = this.scclient.messageGenerator.generatePreimage(channelIdentifier, round, bet.ra);
+      await this.scclient.dbhelper.updateBet(bet.betId, { status: Constants.BET_PREIMAGE });
+      await this.socket.emit('Preimage', preimageMessage);
+
     }
 
-
+    console.timeEnd('onBetResponse');
   }
 
   async onPreimage(message) {
     // 检测是否符合条件
     // 判断输赢 赢：doNothing 设置timeout(如果一直未改变，关闭通道) 输：DirectTransfer
+    console.time('onPreimage');
     console.log('Preimage Received: ', message);
 
     let { channelIdentifier, ra, round } = message;
     // check Preimage
 
+    let channel = await this.scclient.dbhelper.getChannel(channelIdentifier);
+    if (!channel || channel.status != Constants.CHANNEL_OPENED) return;
+
     // update Bet in database
     let bet = await this.scclient.dbhelper.getBetByChannel({channelId: channelIdentifier, round});
+    if (!bet || bet.status != Constants.BET_START) return; 
+
+    if (this.scclient.from != bet.negativeB) return;
+
+    if (!this.messageValidator.checkPreimage(message, bet.hashRa)) {
+      console.error("check Preimage hash failed");
+      return;
+    }
+
 
     // check Win or Lose
-    let isWinner = GameRule.winOrLose(bet.betMask, bet.modulo, ra, bet.rb, false);
+    let isWinner = GameRule.winOrLose(this.web3, bet.betMask, bet.modulo, ra, bet.rb, false);
     await this.scclient.dbhelper.updateBet(bet.betId, {
       ra,
       winner: isWinner,
       status: Constants.BET_PREIMAGE
     });
 
-    // If lose send DirectTransfer to opposite
-    if(!isWinner){
-      const directTransfer = await this.getDirectTransfer(channelIdentifier, bet.winAmount, bet.winAmount, round);
-      console.log('Lose the bet, will send direct transfer to oppsoite', directTransfer);
-      this.socket.emit('DirectTransfer', directTransfer);
-      await this.scclient.dbhelper.addPayment({
-        betId: bet.betId,
-        from: this.scclient.from,
-        to: channel.parter,
-        value: winAmount
-      });
-    } else {
-      const directTransfer = await this.getDirectTransfer(channelIdentifier, 0, bet.winAmount, round);
-      console.log('Win the bet, will cancel locked transfer', directTransfer);
-      this.socket.emit('DirectTransfer', directTransfer);
+
+
+    if (this.scclient.autoRespondB) {
+      // If lose send DirectTransfer to opposite
+      await this.scclient.dbhelper.updateBet(bet.betId, { status: Constants.BET_DIRECT_TRANSFER });
+      if (!isWinner) {
+        const directTransfer = await this.getDirectTransfer(channelIdentifier, bet.winAmount, bet.winAmount, round);
+        console.log('Lose the bet, will send direct transfer to oppsoite', directTransfer);
+        await this.scclient.dbhelper.addPayment({
+          betId: bet.betId,
+          from: this.scclient.from,
+          to: channel.partner,
+          value: bet.winAmount
+        });
+        this.socket.emit('DirectTransfer', directTransfer);
+      } else {
+        const directTransfer = await this.getDirectTransfer(channelIdentifier, 0, bet.winAmount, round);
+        console.log('Win the bet, will cancel locked transfer', directTransfer);
+        this.socket.emit('DirectTransfer', directTransfer);
+      }
     }
+    console.timeEnd("onPreimage");
 
   }
 
   async onDirectTransfer(message) {
     // 检测是否符合条件
     // 更新数据库
+    console.time("onDirectTransfer");
     console.log('DirectTransfer Received: ', message);
     // do nothing
     //check DirectTransfer
@@ -410,10 +437,12 @@ class MessageHandler {
 
     //check LockedTransfer
     let channel = await this.scclient.dbhelper.getChannel(channelIdentifier);
-    if(!channel) return;
+    if (!channel || channel.status != Constants.CHANNEL_OPENED) return;
 
     let bet = await this.scclient.dbhelper.getBetByChannel({ channelId: channelIdentifier });
-    if(!bet) return;
+    if (!bet || bet.status != Constants.BET_PREIMAGE) return;
+
+    if (this.scclient.from != bet.positiveA) return;
 
     let round = bet.round;
 
@@ -438,31 +467,156 @@ class MessageHandler {
     let oppositeTransfer = { channelId: channelIdentifier, balanceHash, transferred_amount, locked_amount, round, nonce, signature, owned: 1 }
     await this.scclient.dbhelper.addTransfer(oppositeTransfer);
     await this.updateBalance(channelIdentifier, deltaTransferAmount, deltaLockedAmount, false);
+    await this.scclient.dbhelper.updateBet(bet.betId, { status: Constants.BET_DIRECT_TRANSFER });
 
-    // update bet status to finished
-    await this.scclient.dbhelper.updateBet(bet.betId, { status: Constants.BET_FINISH });
-    if (deltaTransferAmount > 0){
-      await this.scclient.dbhelper.addPayment({ betId: bet.betId, from: channel.partner, to: this.scclient.from, value: deltaTransferAmount });
+
+
+    if (this.scclient.autoRespondA) {
+      // If lose send DirectTransferR to opposite
+      let directTransfer = null;
+      if (bet.winner != 1) {
+        directTransfer = await this.getDirectTransfer(channelIdentifier, bet.value, bet.value, round);
+        console.log("Lose the bet, will send direct transfer to oppsoite", directTransfer);
+        await this.scclient.dbhelper.addPayment({
+          betId: bet.betId,
+          from: this.scclient.from,
+          to: channel.partner,
+          value: bet.value
+        });
+      } else {
+        directTransfer = await this.getDirectTransfer(channelIdentifier, 0, bet.value, round);
+        console.log("Win the bet, will cancel locked transfer", directTransfer);
+      }
+      // await this.scclient.dbhelper.updateBet(bet.betId, { status: Constants.BET_DIRECT_TRANSFER });
+
+
+      // update bet status to finished
+      if (deltaTransferAmount > 0) {
+        await this.scclient.dbhelper.addPayment({ betId: bet.betId, from: channel.partner, to: this.scclient.from, value: deltaTransferAmount });
+        this.eventManager.sendPaymentReceived(channel, bet);
+      }
+
+      await this.scclient.dbhelper.updateBet(bet.betId, {
+        status: Constants.BET_DIRECT_TRANSFER_TWO
+      });
+
+      this.socket.emit("DirectTransferR", directTransfer);
     }
 
+    console.timeEnd("onDirectTransfer");
   }
+
+  async onDirectTransferR(message){
+ // 检测是否符合条件
+    // 更新数据库
+    console.time("onDirectTransferR");
+    console.log("DirectTransferR Received: ", message);
+    // do nothing
+    //check DirectTransfer
+    let {channelIdentifier, balanceHash, nonce, signature } = message;
+
+    //check LockedTransfer
+    let channel = await this.scclient.dbhelper.getChannel(channelIdentifier);
+    if (!channel || channel.status != Constants.CHANNEL_OPENED) return;
+
+    let bet = await this.scclient.dbhelper.getBetByChannel({ channelId: channelIdentifier });
+    if (!bet || bet.status != Constants.BET_DIRECT_TRANSFER) return;
+
+    if(this.scclient.from != bet.negativeB) return;
+
+    let round = bet.round;
+
+    // check Balance Hash
+    let deltaTransferAmount =  bet.winner == 1 ? bet.value : 0;
+    let deltaLockedAmount = -1 * parseInt(bet.value);
+
+    let { isValidBalanceHash, transferred_amount, locked_amount } = await this.checkBalanceHash(channelIdentifier, balanceHash, deltaTransferAmount, deltaLockedAmount, 0);
+    if (!isValidBalanceHash){
+      console.error("check balanceHash failed");
+      return;
+    } 
+
+    // save received transfer to db
+    let oppositeTransfer = { channelId: channelIdentifier, balanceHash, transferred_amount, locked_amount, round, nonce, signature, owned: 1 }
+    await this.scclient.dbhelper.addTransfer(oppositeTransfer);
+    await this.updateBalance(channelIdentifier, deltaTransferAmount, deltaLockedAmount, false);
+
+    // await this.scclient.dbhelper.updateBet(bet.betId, { status: Constants.BET_DIRECT_TRANSFER });
+
+    // update bet status to finished
+    if (deltaTransferAmount > 0){
+      await this.scclient.dbhelper.addPayment({ betId: bet.betId, from: channel.partner, to: this.scclient.from, value: deltaTransferAmount });
+      this.eventManager.sendPaymentReceived(channel, bet);
+    }
+
+    await this.scclient.dbhelper.updateBet(bet.betId, {
+      status: Constants.BET_FINISH
+    });
+
+    this.socket.emit('BetSettle', { channelIdentifier, round });
+
+    console.log('eventManager', this.eventManager);
+    this.eventManager.sendBetSettled(channel, bet);
+
+    console.timeEnd("onDirectTransferR");
+  }
+
+  async onBetSettle(message){
+    console.time("onBetSettle");
+    console.log("BetSettle Received: ", message);
+    // do nothing
+    //check DirectTransfer
+    let { channelIdentifier, round } = message; 
+    //check LockedTransfer
+    let channel = await this.scclient.dbhelper.getChannel(channelIdentifier);
+    if (!channel || channel.status != Constants.CHANNEL_OPENED) return;
+
+    let bet = await this.scclient.dbhelper.getBetByChannel({ channelId: channelIdentifier });
+    if (!bet || bet.status != Constants.BET_DIRECT_TRANSFER_TWO) return;
+
+    if (this.scclient.from != bet.positiveA) return;
+
+    await this.scclient.dbhelper.updateBet(bet.betId, {
+      status: Constants.BET_FINISH
+    });
+
+    console.log('eventManager', this.eventManager);
+    this.eventManager.sendBetSettled(channel, bet);
+    console.timeEnd("onBetSettle");
+
+  }
+
+
 
   async onCooperativeSettle(message){
 
     console.log('CooperativeSettleRequest Received: ', message);
+    let { paymentContract, channelIdentifier, p1, p1Balance, p2, p2Balance, signature: p1Signature } = message;
     // check balance
+    let channel = await this.scclient.dbhelper.getChannel(channelIdentifier);
+    if (!channel || channel.status != Constants.CHANNEL_OPENED) return; 
 
+    if(p1 != channel.partner
+      || p2 != this.scclient.from
+      ||p1Balance != channel.remoteBalance 
+      || p2Balance != channel.localBalance
+      ){
+        console.error('balance is not correct');
+        return;
+      }
     // check partner signature
 
+    if(!this.scclient.messageValidator.checkCooperativeSettleRequest(message, p1)){
+      console.error("invalid signature for cooperativeSettleRequest");
+      return;
+    }
+
     // sign Message, then submit to blockchain
+    let cooperativeSettleRequest = this.scclient.messageGenerator.genreateCooperativeSettleRequest(channelIdentifier, p1, p1Balance, p2, p2Balance);
+    let p2Signature = cooperativeSettleRequest.signature;
 
-    let { paymentContract, channelIdentifier, p1, p1Balance, p2, p2Balance, p1Signature } = message;
-    let shaMessage = Ecsign.mySha3(this.scclient.web3, paymentContract, channelIdentifier, p1, p1Balance, p2, p2Balance);
-    console.log('shaMessage', shaMessage);
-    let p2Signature = Ecsign.myEcsign(this.scclient.web3, shaMessage, this.scclient.privateKey);
-    console.log('p2Signature', p2Signature);
+    await this.scclient.blockchainProxy.cooperativeSettle(p1, p1Balance, p2, p2Balance, this.web3.utils.hexToBytes(p1Signature), this.web3.utils.hexToBytes(p2Signature));
 
-    await this.scclient.blockchainProxy.cooperativeSettle(p1, p1Balance, p2, p2Balance, p1Signature, p2Signature);
   }
 }
 

@@ -13,6 +13,10 @@ class NodeDBHelper extends DBHelper {
     this.model = require("./model")(sequelize);
   }
 
+  async init(){
+    await this.model.init();
+  }
+
   async addChannel(channel) {
     console.log("[NodeDBHelper: AddChannel]", channel);
     return await this.model.Channel.create(channel);

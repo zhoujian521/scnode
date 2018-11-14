@@ -59,13 +59,15 @@ module.exports = (sequelize) => {
     value: Sequelize.STRING
   });
 
-  Channel.sync();
-  Transfer.sync();
-  Bet.sync();
-  Payment.sync();
-
+  const init = async()=>{
+    await Channel.sync();
+    await Transfer.sync();
+    await Bet.sync();
+    await Payment.sync();
+  }
 
   return {
+    init,
     Channel,
     Transfer,
     Bet,

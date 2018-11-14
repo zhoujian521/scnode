@@ -1,13 +1,18 @@
 const nodeDBHelper = require("./nodejs/nodeDBHelper");
 const rnDBHelper = require("./react-native/rnDBHelper");
 
-function initDBHelper(dbprovider) {
+async function initDBHelper(dbprovider) {
 
+    let dbhelper = null;
     if (dbprovider.type == 'node') {
-        return new nodeDBHelper(dbprovider.config);
+        dbhelper = (new nodeDBHelper(dbprovider.config));
+        await dbhelper.init();
     } else {
-        return new rnDBHelper(dbprovider.config);
+        dbhelper = (new rnDBHelper(dbprovider.config));
+        await dbhelper.init();
     }
+
+    return dbhelper;
 }
 
 module.exports = {

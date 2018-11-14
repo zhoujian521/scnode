@@ -18,12 +18,24 @@ function myEcsignToHex(web3, messageHash, privateKey) {
 }
 
 function mySha3(web3, contractAddress, channelIdentifier, p1, p1Balance, p2, p2Balance) {
-    message = web3.utils.soliditySha3(contractAddress, channelIdentifier, p1, p1Balance, p2, p2Balance);
+    let message = web3.utils.soliditySha3(contractAddress, channelIdentifier, p1, p1Balance, p2, p2Balance);
     message = new Buffer(message.substr(2), 'hex');
     return message;
 }
 
-function checkSignature(web3, signature, ...params){
+function checkSignature(messageHash, signatureHex, address) {
+
+    console.log('checkSignature', messageHash, signatureHex, address);
+
+    let messageHashBuffer = new Buffer(messageHash.replace("0x", ""), "hex")
+    let sigDecoded = ethUtil.fromRpcSig(signatureHex);
+    let recoveredPub = ethUtil.ecrecover(messageHashBuffer, sigDecoded.v, sigDecoded.r, sigDecoded.s)
+    let recoveredAddress = ethUtil.pubToAddress(recoveredPub).toString("hex")
+    recoveredAddress = "0x" + recoveredAddress;
+
+    console.log('recoveredAddress', recoveredAddress);
+    return recoveredAddress.toLowerCase() == address.toLowerCase();
+
 
 }
 

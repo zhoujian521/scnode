@@ -22,7 +22,7 @@ class SCClient {
 
   constructor(wsUrl, dbprovider, fromAddress, privateKey) {
 
-    const contractInfo = {
+    this.contractInfo = {
       fromAddress,
       privateKey,
       paymentContractAddress,
@@ -33,25 +33,43 @@ class SCClient {
 
     this.from = fromAddress;
     this.privateKey = privateKey;
+    this.dbprovider = dbprovider;
 
     this.eventList = {};
-    this.eventManager = new EventManager(this.eventList);
 
     this.web3 = new Web3(Web3.givenProvider || wsUrl);
-    this.dbhelper = dbfactory.initDBHelper(dbprovider);
-    this.blockchainProxy = new BlockchainProxy(this.web3, contractInfo);
-    this.messageGenerator = new MessageGenerator(this.web3, fromAddress, privateKey, gameContractAddress, paymentContractAddress);
-    this.messageValidator = new MessageValidator(this.web3, gameContractAddress, paymentContractAddress);
+
+    this.autoRespondA = true;
+    this.autoRespondB = true;
     
 
     // 启动blockchainEventHandler 
-    new BlockChainEventHandler(this.web3, contractInfo, this).start();
+    this.blockchainProxy = new BlockchainProxy(this.web3, this.contractInfo);
+    this.messageGenerator = new MessageGenerator(this.web3, fromAddress, privateKey, gameContractAddress, paymentContractAddress);
+    this.messageValidator = new MessageValidator(this.web3, gameContractAddress, paymentContractAddress);
+
+  }
+
+  setAutoRespond(autoRespondA, autoRespondB) {
+
+    this.autoRespondA = autoRespondA;
+    this.autoRespondB = autoRespondB;
 
   }
 
   initMessageHandler(socket){
     this.socket = socket;
     new MessageHandler(socket, this).start();
+  }
+
+  async init() {
+    this.dbhelper = await dbfactory.initDBHelper(this.dbprovider);
+
+    this.eventManager = new EventManager(this.eventList);
+    new BlockChainEventHandler(this.web3, this.contractInfo, this).start();
+
+    console.log("db init finished");
+
   }
 
 
@@ -84,9 +102,24 @@ class SCClient {
    * @param  betValue       下注金额
    * @param  randomSeed     选择随机数
    */
-  async startBet(partnerAddress, betMask, modulo, betValue, randomSeed = "") {
+  async startBet(channelIdentifier, partnerAddress, betMask, modulo, betValue, randomSeed = "") {
 
-    let channelIdentifier = await this.blockchainProxy.getChannelIdentifier(partnerAddress);
+    // let channelIdentifier = await this.blockchainProxy.getChannelIdentifier(partnerAddress);
+    // let channelIdentifier = '0xdd825b249141facccd6f96c23cc033abc045dbd44046f386b585e9c7900e82cd';
+
+    console.time('startBet');
+    let channel = await this.dbhelper.getChannel(channelIdentifier);
+    if (!channel || channel.status != Constants.CHANNEL_OPENED) {
+      console.error('channel not exist in db');
+      return;
+    }
+    console.timeEnd('startBet');
+
+    let lastBet = await this.dbhelper.getBetByChannel({channelId: channelIdentifier});
+    if(lastBet != null && lastBet.status != Constants.BET_FINISH){
+      console.log("There are unfinished bet, can not start new bet");
+      return false;
+    } 
 
     let round = await this.dbhelper.getLatestRound(channelIdentifier);
 
@@ -101,6 +134,8 @@ class SCClient {
 
     console.log('betRequestMessage', betRequestMessage);
 
+
+    console.time('addBet');
     let winAmount = GameRule.getPossibleWinAmount(betMask, modulo, betValue);
     //save Bet to Database
     await this.dbhelper.addBet({
@@ -121,6 +156,7 @@ class SCClient {
 
     // then send BetRequest to partner
     await this.socket.emit('BetRequest', betRequestMessage);
+    console.timeEnd('addBet');
     return true;
   }
 
@@ -145,25 +181,19 @@ class SCClient {
    */
   async closeChannelCooperative(partnerAddress){
 
-
     let channelIdentifier = await this.blockchainProxy.getChannelIdentifier(partnerAddress);
     let channel = await this.dbhelper.getChannel(channelIdentifier);
+
+    if(!channel || channel.status != Constants.CHANNEL_OPENED){
+      console.error("channel not exist or channel is not open");
+      return;
+    }
 
     let localBalance = channel.localBalance;
     let remoteBalance = channel.remoteBalance;
     
-    let shaMessage = Ecsign.mySha3(this.web3, paymentContractAddress, channelIdentifier, this.from, localBalance, partnerAddress, remoteBalance);
-    let signature = Ecsign.myEcsign(this.web3, shaMessage, this.privateKey);
-    
-    this.socket.emit('CooperativeSettleRequest', {
-      paymentContract: paymentContractAddress,
-      channelIdentifier,
-      p1: this.from,
-      p1Balance: localBalance,
-      p2: partnerAddress,
-      p2Balance: remoteBalance,
-      p1Signature: signature
-    });
+    let cooperativeSettleRequestMessage = this.messageGenerator.genreateCooperativeSettleRequest(channelIdentifier, this.from, localBalance, partnerAddress,  remoteBalance);
+    this.socket.emit("CooperativeSettleRequest", cooperativeSettleRequestMessage);
 
     return true;
 
@@ -187,6 +217,9 @@ class SCClient {
   }
 
   on(event, callback){
+
+    console.log("onEvent set event now", event, callback);
+
     this.eventList[event] = callback; 
     return this;
 
