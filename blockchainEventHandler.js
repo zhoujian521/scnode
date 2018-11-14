@@ -81,6 +81,9 @@ class BlockChainEventHandler {
           remoteBalance: 0,
           localLockedAmount: 0,
           remoteLockedAmount: 0,
+          currentRound: 0,
+          localNonce: 0,
+          remoteNonce: 0,
           status: Constants.CHANNEL_OPENED
         };
 
@@ -95,6 +98,9 @@ class BlockChainEventHandler {
           remoteBalance: amount,
           localLockedAmount: 0,
           remoteLockedAmount: 0,
+          currentRound: 0,
+          localNonce: 0,
+          remoteNonce: 0,
           status: Constants.CHANNEL_OPENED
         };
       }

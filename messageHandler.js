@@ -58,7 +58,7 @@ class MessageHandler {
     }
     
 
-    let bet = await this.scclient.dbhelper.getBetByChannel({ channelId: channelIdentifier });
+    let bet = await this.scclient.dbhelper.getBetByChannel({ channelId: channelIdentifier, round: channel.currentRound });
     if (bet != null && bet.status != Constants.BET_FINISH) {
       console.log("There are unfinished bet, can not start new bet");
       return;
@@ -68,10 +68,11 @@ class MessageHandler {
     //save bet to database
     bet = { gameContractAddress, channelId: channelIdentifier, round, betMask, modulo, value, positiveA, negativeB: this.scclient.from, hashRa, signatureA, winAmount, status: Constants.BET_INIT };
     await this.scclient.dbhelper.addBet(bet);
+    await this.scclient.dbhelper.updateChannel(channelIdentifier, { currentRound: round });
 
 
     if (this.scclient.autoRespondB) {
-      let lockedTransfer = await this.getLockedTransfer(channelIdentifier, winAmount, round);
+      let lockedTransfer = await this.getLockedTransfer(channelIdentifier, winAmount, round, channel.localNonce);
 
       //send LockedTransfer to opposite
 
@@ -89,9 +90,9 @@ class MessageHandler {
   }
 
 
-  async getLockedTransfer(channelIdentifier, winAmount, round) {
+  async getLockedTransfer(channelIdentifier, winAmount, round, lastNonce) {
     //generate LockedTransfer
-    let currentTransfer = await this.scclient.dbhelper.getLatestTransfer(channelIdentifier, 0);
+    let currentTransfer = await this.scclient.dbhelper.getLatestTransfer({ channelId: channelIdentifier, nonce: lastNonce, owned: 0 });
     let current_transfferred_amount = currentTransfer ? currentTransfer.transferred_amount : 0;
     let current_locked_amount = currentTransfer ? currentTransfer.locked_amount : 0;
     let current_nonce = currentTransfer ? currentTransfer.nonce : 0;
@@ -105,17 +106,17 @@ class MessageHandler {
     //save LockedTransfer to DB
     let transfer = { channelId: channelIdentifier, balanceHash, transferred_amount, locked_amount, round, nonce, owned: 0, signature: lockedTransfer.signature };
     await this.scclient.dbhelper.addTransfer(transfer);
-    await this.updateBalance(channelIdentifier, 0, winAmount, true);
+    await this.updateBalance(channelIdentifier, 0, winAmount, { localNonce: nonce }, true);
 
     return lockedTransfer;
 
   }
 
 
-  async getDirectTransfer(channelIdentifier, sendAmount, cancelLockedAmount, round){
+  async getDirectTransfer(channelIdentifier, sendAmount, cancelLockedAmount, round, lastNonce){
 
     //generate LockedTransfer
-    let currentTransfer = await this.scclient.dbhelper.getLatestTransfer(channelIdentifier, 0);
+    let currentTransfer = await this.scclient.dbhelper.getLatestTransfer({ channelId: channelIdentifier, nonce: lastNonce, owned: 0 });
     let current_transfferred_amount = currentTransfer ? currentTransfer.transferred_amount : 0;
     let current_locked_amount = currentTransfer ? currentTransfer.locked_amount : 0;
     let current_nonce = currentTransfer ? currentTransfer.nonce : 0;
@@ -129,14 +130,14 @@ class MessageHandler {
     //save LockedTransfer to DB
     let transfer = { channelId: channelIdentifier, balanceHash, transferred_amount, locked_amount, round, nonce, owned: 0, signature: lockedTransfer.signature };
     await this.scclient.dbhelper.addTransfer(transfer);
-    await this.updateBalance(channelIdentifier, sendAmount, -1 * parseInt(cancelLockedAmount), true);
+    await this.updateBalance(channelIdentifier, sendAmount, -1 * parseInt(cancelLockedAmount), { localNonce: nonce }, true);
 
     return lockedTransfer;
 
   }
 
-  async checkBalanceHash(channelIdentifier, balanceHash, deltaTransferAmount, deltaLockedAmount, round){    
-    let currentTransfer = await this.scclient.dbhelper.getLatestTransfer(channelIdentifier, 1);
+  async checkBalanceHash(channelIdentifier, balanceHash, deltaTransferAmount, deltaLockedAmount, round, lastNonce) {    
+    let currentTransfer = await this.scclient.dbhelper.getLatestTransfer({ channelId: channelIdentifier, nonce: lastNonce, owned: 1 });
 
     let current_transferred_amount = currentTransfer ? currentTransfer.transferred_amount : 0;
     let current_locked_amount = currentTransfer ? currentTransfer.locked_amount : 0;
@@ -155,7 +156,7 @@ class MessageHandler {
   }
 
   // update localBalance & remoteBalance when send or receive LockedTransfer
-  async updateBalance(channelId, deltaTransferAmount, deltaLockedAmount, localOrRemote){
+  async updateBalance(channelId, deltaTransferAmount, deltaLockedAmount, nonceData, localOrRemote) {
 
     console.log("UPDATE CHANNEL BALANCE: ", channelId, deltaTransferAmount, deltaLockedAmount, localOrRemote);
 
@@ -198,13 +199,8 @@ class MessageHandler {
         .add(this.web3.utils.toBN(deltaLockedAmount))
         .toString(10);
     }
-
-    await this.scclient.dbhelper.updateChannel(channelId, {
-      localBalance,
-      remoteBalance,
-      localLockedAmount,
-      remoteLockedAmount
-    });
+    let data = Object.assign({ localBalance, remoteBalance, localLockedAmount, remoteLockedAmount }, nonceData);
+    await this.scclient.dbhelper.updateChannel(channelId, data);
 
   }
 
@@ -219,7 +215,7 @@ class MessageHandler {
     let channel = await this.scclient.dbhelper.getChannel(channelIdentifier);
     if (!channel || channel.status != Constants.CHANNEL_OPENED) return;
 
-    let bet = await this.scclient.dbhelper.getBetByChannel({ channelId: channelIdentifier });
+    let bet = await this.scclient.dbhelper.getBetByChannel({ channelId: channelIdentifier, round: channel.currentRound });
     if (!bet || bet.status != Constants.BET_INIT) return;
 
     console.log('bet is', bet);
@@ -234,7 +230,7 @@ class MessageHandler {
       return;
     }
     // check Balance Hash
-    let { isValidBalanceHash, transferred_amount, locked_amount } = await this.checkBalanceHash(channelIdentifier, balanceHash, 0, bet.winAmount, round);
+    let { isValidBalanceHash, transferred_amount, locked_amount } = await this.checkBalanceHash(channelIdentifier, balanceHash, 0, bet.winAmount, round, channel.remoteNonce);
     if (!isValidBalanceHash){
       console.error("check balanceHash failed");
       return;
@@ -244,13 +240,13 @@ class MessageHandler {
     // save received transfer to db
     let oppositeTransfer = { channelId: channelIdentifier, balanceHash, transferred_amount, locked_amount, round, nonce, signature, owned: 1 };
     await this.scclient.dbhelper.addTransfer(oppositeTransfer);
-    await this.updateBalance(channelIdentifier, 0, bet.winAmount, false);
+    await this.updateBalance(channelIdentifier, 0, bet.winAmount, { remoteNonce: nonce }, false);
 
     await this.scclient.dbhelper.updateBet(bet.betId, { status: Constants.BET_LOCK_ONE });
 
     if(this.scclient.autoRespondA){
       //generate LockedTransfer
-      let lockedTransfer = await this.getLockedTransfer(channelIdentifier, bet.value, round);
+      let lockedTransfer = await this.getLockedTransfer(channelIdentifier, bet.value, round, channel.localNonce);
       //send LockedR to opposite
       await this.scclient.dbhelper.updateBet(bet.betId, { status: Constants.BET_LOCK_TWO });
       this.socket.emit('LockedTransferR', lockedTransfer);
@@ -272,7 +268,7 @@ class MessageHandler {
     let channel = await this.scclient.dbhelper.getChannel(channelIdentifier);
     if (!channel || channel.status != Constants.CHANNEL_OPENED) return;
 
-    let bet = await this.scclient.dbhelper.getBetByChannel({ channelId: channelIdentifier });
+    let bet = await this.scclient.dbhelper.getBetByChannel({ channelId: channelIdentifier, round: channel.currentRound });
     console.log('bet is ', bet);
     if (!bet || bet.status != Constants.BET_LOCK_ONE) return;
 
@@ -289,7 +285,7 @@ class MessageHandler {
     let round = bet.round;
 
     // check Balance Hash
-    let { isValidBalanceHash, transferred_amount, locked_amount } = await this.checkBalanceHash(channelIdentifier, balanceHash, 0, bet.value, round);
+    let { isValidBalanceHash, transferred_amount, locked_amount } = await this.checkBalanceHash(channelIdentifier, balanceHash, 0, bet.value, round, channel.remoteNonce);
     if (!isValidBalanceHash){
       console.error("check balanceHash failed");
       return;
@@ -298,7 +294,7 @@ class MessageHandler {
     // save received transfer to db
     let oppositeTransfer = { channelId: channelIdentifier, balanceHash, transferred_amount, locked_amount, round, nonce, signature, owned: 1 };
     await this.scclient.dbhelper.addTransfer(oppositeTransfer);
-    await this.updateBalance(channelIdentifier, 0, bet.value, false);
+    await this.updateBalance(channelIdentifier, 0, bet.value, { remoteNonce: nonce }, false);
     await this.scclient.dbhelper.updateBet(bet.betId, { status: Constants.BET_LOCK_TWO });
       
 
@@ -407,7 +403,7 @@ class MessageHandler {
       // If lose send DirectTransfer to opposite
       await this.scclient.dbhelper.updateBet(bet.betId, { status: Constants.BET_DIRECT_TRANSFER });
       if (!isWinner) {
-        const directTransfer = await this.getDirectTransfer(channelIdentifier, bet.winAmount, bet.winAmount, round);
+        const directTransfer = await this.getDirectTransfer(channelIdentifier, bet.winAmount, bet.winAmount, round, channel.localNonce);
         console.log('Lose the bet, will send direct transfer to oppsoite', directTransfer);
         await this.scclient.dbhelper.addPayment({
           betId: bet.betId,
@@ -417,7 +413,7 @@ class MessageHandler {
         });
         this.socket.emit('DirectTransfer', directTransfer);
       } else {
-        const directTransfer = await this.getDirectTransfer(channelIdentifier, 0, bet.winAmount, round);
+        const directTransfer = await this.getDirectTransfer(channelIdentifier, 0, bet.winAmount, round, channel.localNonce);
         console.log('Win the bet, will cancel locked transfer', directTransfer);
         this.socket.emit('DirectTransfer', directTransfer);
       }
@@ -439,7 +435,7 @@ class MessageHandler {
     let channel = await this.scclient.dbhelper.getChannel(channelIdentifier);
     if (!channel || channel.status != Constants.CHANNEL_OPENED) return;
 
-    let bet = await this.scclient.dbhelper.getBetByChannel({ channelId: channelIdentifier });
+    let bet = await this.scclient.dbhelper.getBetByChannel({ channelId: channelIdentifier, round: channel.currentRound });
     if (!bet || bet.status != Constants.BET_PREIMAGE) return;
 
     if (this.scclient.from != bet.positiveA) return;
@@ -457,7 +453,7 @@ class MessageHandler {
       deltaTransferAmount = bet.winner == 1 ? bet.value : 0;
       deltaLockedAmount = -1 * parseInt(bet.value);
     }
-    let { isValidBalanceHash, transferred_amount, locked_amount } = await this.checkBalanceHash(channelIdentifier, balanceHash, deltaTransferAmount, deltaLockedAmount, 0);
+    let { isValidBalanceHash, transferred_amount, locked_amount } = await this.checkBalanceHash(channelIdentifier, balanceHash, deltaTransferAmount, deltaLockedAmount, 0, channel.remoteNonce);
     if (!isValidBalanceHash){
       console.error("check balanceHash failed");
       return;
@@ -466,7 +462,7 @@ class MessageHandler {
     // save received transfer to db
     let oppositeTransfer = { channelId: channelIdentifier, balanceHash, transferred_amount, locked_amount, round, nonce, signature, owned: 1 }
     await this.scclient.dbhelper.addTransfer(oppositeTransfer);
-    await this.updateBalance(channelIdentifier, deltaTransferAmount, deltaLockedAmount, false);
+    await this.updateBalance(channelIdentifier, deltaTransferAmount, deltaLockedAmount, { remoteNonce: nonce }, false);
     await this.scclient.dbhelper.updateBet(bet.betId, { status: Constants.BET_DIRECT_TRANSFER });
 
 
@@ -475,7 +471,7 @@ class MessageHandler {
       // If lose send DirectTransferR to opposite
       let directTransfer = null;
       if (bet.winner != 1) {
-        directTransfer = await this.getDirectTransfer(channelIdentifier, bet.value, bet.value, round);
+        directTransfer = await this.getDirectTransfer(channelIdentifier, bet.value, bet.value, round, channel.localNonce);
         console.log("Lose the bet, will send direct transfer to oppsoite", directTransfer);
         await this.scclient.dbhelper.addPayment({
           betId: bet.betId,
@@ -484,7 +480,7 @@ class MessageHandler {
           value: bet.value
         });
       } else {
-        directTransfer = await this.getDirectTransfer(channelIdentifier, 0, bet.value, round);
+        directTransfer = await this.getDirectTransfer(channelIdentifier, 0, bet.value, round, channel.localNonce);
         console.log("Win the bet, will cancel locked transfer", directTransfer);
       }
       // await this.scclient.dbhelper.updateBet(bet.betId, { status: Constants.BET_DIRECT_TRANSFER });
@@ -519,7 +515,7 @@ class MessageHandler {
     let channel = await this.scclient.dbhelper.getChannel(channelIdentifier);
     if (!channel || channel.status != Constants.CHANNEL_OPENED) return;
 
-    let bet = await this.scclient.dbhelper.getBetByChannel({ channelId: channelIdentifier });
+    let bet = await this.scclient.dbhelper.getBetByChannel({ channelId: channelIdentifier, round: channel.currentRound });
     if (!bet || bet.status != Constants.BET_DIRECT_TRANSFER) return;
 
     if(this.scclient.from != bet.negativeB) return;
@@ -530,7 +526,7 @@ class MessageHandler {
     let deltaTransferAmount =  bet.winner == 1 ? bet.value : 0;
     let deltaLockedAmount = -1 * parseInt(bet.value);
 
-    let { isValidBalanceHash, transferred_amount, locked_amount } = await this.checkBalanceHash(channelIdentifier, balanceHash, deltaTransferAmount, deltaLockedAmount, 0);
+    let { isValidBalanceHash, transferred_amount, locked_amount } = await this.checkBalanceHash(channelIdentifier, balanceHash, deltaTransferAmount, deltaLockedAmount, 0, channel.remoteNonce);
     if (!isValidBalanceHash){
       console.error("check balanceHash failed");
       return;
@@ -539,7 +535,7 @@ class MessageHandler {
     // save received transfer to db
     let oppositeTransfer = { channelId: channelIdentifier, balanceHash, transferred_amount, locked_amount, round, nonce, signature, owned: 1 }
     await this.scclient.dbhelper.addTransfer(oppositeTransfer);
-    await this.updateBalance(channelIdentifier, deltaTransferAmount, deltaLockedAmount, false);
+    await this.updateBalance(channelIdentifier, deltaTransferAmount, deltaLockedAmount, { remoteNonce: nonce }, false);
 
     // await this.scclient.dbhelper.updateBet(bet.betId, { status: Constants.BET_DIRECT_TRANSFER });
 
@@ -571,7 +567,7 @@ class MessageHandler {
     let channel = await this.scclient.dbhelper.getChannel(channelIdentifier);
     if (!channel || channel.status != Constants.CHANNEL_OPENED) return;
 
-    let bet = await this.scclient.dbhelper.getBetByChannel({ channelId: channelIdentifier });
+    let bet = await this.scclient.dbhelper.getBetByChannel({ channelId: channelIdentifier, round: channel.currentRound });
     if (!bet || bet.status != Constants.BET_DIRECT_TRANSFER_TWO) return;
 
     if (this.scclient.from != bet.positiveA) return;

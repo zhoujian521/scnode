@@ -12,7 +12,10 @@ module.exports = (sequelize) => {
     remoteBalance: Sequelize.STRING,
     localLockedAmount: Sequelize.STRING,
     remoteLockedAmount: Sequelize.STRING,
-    status: Sequelize.TINYINT
+    localNonce: Sequelize.INTEGER,
+    remoteNonce: Sequelize.INTEGER,
+    status: Sequelize.TINYINT,
+    currentRound: Sequelize.INTEGER
   });
 
   const Transfer = sequelize.define("tansfer", {

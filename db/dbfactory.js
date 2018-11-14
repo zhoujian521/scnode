@@ -3,6 +3,7 @@ const rnDBHelper = require("./react-native/rnDBHelper");
 
 async function initDBHelper(dbprovider) {
 
+    console.log('initDBHelper');
     let dbhelper = null;
     if (dbprovider.type == 'node') {
         dbhelper = (new nodeDBHelper(dbprovider.config));

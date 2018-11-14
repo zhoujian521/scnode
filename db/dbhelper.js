@@ -20,14 +20,14 @@ class DBHelper {
   updateTransfer(transferId, newAttr) {}
   deleteTransfer(transferId) {}
   getTransfer(transferId) {}
-  getLatestTransfer(channelId, owned){}
+  getLatestTransfer(where) {}
 
   addBet(bet) {}
   updateBet(betId, newAttr) {}
   getBets() {}
   getBet(betId) {}
-  getBetByChannel(where){}
-  getLatestRound(channelId){}
+  getBetByChannel(where) {}
+  getLatestRound(channelId) {}
 }
 
 module.exports = DBHelper;

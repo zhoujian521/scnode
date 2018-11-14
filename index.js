@@ -63,6 +63,8 @@ class SCClient {
   }
 
   async init() {
+
+    console.log('dbfactory is in init');
     this.dbhelper = await dbfactory.initDBHelper(this.dbprovider);
 
     this.eventManager = new EventManager(this.eventList);
@@ -115,13 +117,12 @@ class SCClient {
     }
     console.timeEnd('startBet');
 
-    let lastBet = await this.dbhelper.getBetByChannel({channelId: channelIdentifier});
+    let lastBet = await this.dbhelper.getBetByChannel({channelId: channelIdentifier, round: channel.currentRound});
     if(lastBet != null && lastBet.status != Constants.BET_FINISH){
       console.log("There are unfinished bet, can not start new bet");
       return false;
     } 
-
-    let round = await this.dbhelper.getLatestRound(channelIdentifier);
+    let round = channel.currentRound == null ? 1 : channel.currentRound + 1;
 
     console.log('new Round is ', round);
 
@@ -153,6 +154,7 @@ class SCClient {
       negativeB: betRequestMessage.negativeB,
       status: Constants.BET_INIT
     });
+    await this.dbhelper.updateChannel(channelIdentifier, { currentRound: round });
 
     // then send BetRequest to partner
     await this.socket.emit('BetRequest', betRequestMessage);

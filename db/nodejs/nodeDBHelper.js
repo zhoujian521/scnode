@@ -13,7 +13,8 @@ class NodeDBHelper extends DBHelper {
     this.model = require("./model")(sequelize);
   }
 
-  async init(){
+  async init() {
+    console.log('NodeDBHelper Init');
     await this.model.init();
   }
 
@@ -86,9 +87,9 @@ class NodeDBHelper extends DBHelper {
     return transfer.get({ plain: true });
   }
 
-  async getLatestTransfer(channelId, owned) {
+  async getLatestTransfer(where) {
     let transfer = await this.model.Transfer.findOne({
-      where: { channelId, owned },
+      where: where,
       order: [["nonce", "desc"]]
     });
     if (!transfer) return null;
@@ -116,7 +117,10 @@ class NodeDBHelper extends DBHelper {
   }
 
   async getBetByChannel(where) {
-    let bet = await this.model.Bet.findOne({ where, order: [['round', 'desc']] });
+    let bet = await this.model.Bet.findOne({
+      where,
+      order: [["round", "desc"]]
+    });
     if (!bet) return null;
     return bet.get({ plain: true });
   }
