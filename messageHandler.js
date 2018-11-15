@@ -407,8 +407,8 @@ class MessageHandler {
         console.log('Lose the bet, will send direct transfer to oppsoite', directTransfer);
         await this.scclient.dbhelper.addPayment({
           betId: bet.betId,
-          from: this.scclient.from,
-          to: channel.partner,
+          fromAddr: this.scclient.from,
+          toAddr: channel.partner,
           value: bet.winAmount
         });
         this.socket.emit('DirectTransfer', directTransfer);
@@ -475,8 +475,8 @@ class MessageHandler {
         console.log("Lose the bet, will send direct transfer to oppsoite", directTransfer);
         await this.scclient.dbhelper.addPayment({
           betId: bet.betId,
-          from: this.scclient.from,
-          to: channel.partner,
+          fromAddr: this.scclient.from,
+          toAddr: channel.partner,
           value: bet.value
         });
       } else {
@@ -488,7 +488,7 @@ class MessageHandler {
 
       // update bet status to finished
       if (deltaTransferAmount > 0) {
-        await this.scclient.dbhelper.addPayment({ betId: bet.betId, from: channel.partner, to: this.scclient.from, value: deltaTransferAmount });
+        await this.scclient.dbhelper.addPayment({ betId: bet.betId, fromAddr: channel.partner, toAddr: this.scclient.from, value: deltaTransferAmount });
         this.eventManager.sendPaymentReceived(channel, bet);
       }
 
@@ -541,7 +541,7 @@ class MessageHandler {
 
     // update bet status to finished
     if (deltaTransferAmount > 0){
-      await this.scclient.dbhelper.addPayment({ betId: bet.betId, from: channel.partner, to: this.scclient.from, value: deltaTransferAmount });
+      await this.scclient.dbhelper.addPayment({ betId: bet.betId, fromAddr: channel.partner, toAddr: this.scclient.from, value: deltaTransferAmount });
       this.eventManager.sendPaymentReceived(channel, bet);
     }
 

@@ -20,7 +20,7 @@ const gameContractAbi = require('./Dice_SC.json')
 
 class SCClient {
 
-  constructor(wsUrl, dbprovider, fromAddress, privateKey) {
+  constructor(wsUrl, dbhelper, fromAddress, privateKey) {
 
     this.contractInfo = {
       fromAddress,
@@ -33,7 +33,7 @@ class SCClient {
 
     this.from = fromAddress;
     this.privateKey = privateKey;
-    this.dbprovider = dbprovider;
+    this.dbhelper = dbhelper ;
 
     this.eventList = {};
 
@@ -47,6 +47,12 @@ class SCClient {
     this.blockchainProxy = new BlockchainProxy(this.web3, this.contractInfo);
     this.messageGenerator = new MessageGenerator(this.web3, fromAddress, privateKey, gameContractAddress, paymentContractAddress);
     this.messageValidator = new MessageValidator(this.web3, gameContractAddress, paymentContractAddress);
+
+    this.eventManager = new EventManager(this.eventList);
+    new BlockChainEventHandler(this.web3, this.contractInfo, this).start();
+
+
+
 
   }
 
@@ -64,13 +70,6 @@ class SCClient {
 
   async init() {
 
-    console.log('dbfactory is in init');
-    this.dbhelper = await dbfactory.initDBHelper(this.dbprovider);
-
-    this.eventManager = new EventManager(this.eventList);
-    new BlockChainEventHandler(this.web3, this.contractInfo, this).start();
-
-    console.log("db init finished");
 
   }
 

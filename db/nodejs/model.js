@@ -18,7 +18,7 @@ module.exports = (sequelize) => {
     currentRound: Sequelize.INTEGER
   });
 
-  const Transfer = sequelize.define("tansfer", {
+  const Transfer = sequelize.define("transfer", {
     transferId: { type: Sequelize.INTEGER, primaryKey: true, autoIncrement: true },
     channelId: Sequelize.STRING,
     balanceHash: Sequelize.STRING,
@@ -57,8 +57,8 @@ module.exports = (sequelize) => {
       autoIncrement: true
     },
     betId: Sequelize.INTEGER,
-    from: Sequelize.STRING,
-    to: Sequelize.STRING,
+    fromAddr: Sequelize.STRING,
+    toAddr: Sequelize.STRING,
     value: Sequelize.STRING
   });
 

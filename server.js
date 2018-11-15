@@ -1,12 +1,12 @@
 var SCClient = require("./index");
 var io = require("socket.io")(80);
+const dbfactory = require("./db/dbfactory");
 
 
 
 
 //rinkeby geth server
 let ethWSUrl = 'ws://54.250.21.165:8546';
-
 let dbprovider = {
   type: 'node',
   config: {
@@ -32,23 +32,19 @@ let dbprovider = {
 
 let address = '0x633177eeE5dB5a2c504e0AE6044d20a9287909f9';
 let privateKey = '4E9866ADC11E202E6B47CC087B3776B1F460CECD53086007538FB2D207FE54A6';
-let scclient = new SCClient(ethWSUrl, dbprovider, address, privateKey);
-
-
-io.on("connection", function(socket) {
-  scclient.initMessageHandler(socket);
-
-  // socket.emit('betRequest', {hello: "world"});
-});
-
-
-// scclient.setAutoRespond(false);
-
-
 
 async function main(){
 
+  console.log('dbfactory is in init');
+  let dbhelper = await dbfactory.initDBHelper(dbprovider);
+  console.log("db init finished");
+  let scclient = new SCClient(ethWSUrl, dbhelper, address, privateKey);
   await scclient.init();
+
+  io.on("connection", function(socket) {
+    scclient.initMessageHandler(socket);
+  });
+
 
   let channels = await scclient.getAllChannels();
   console.log(channels);
