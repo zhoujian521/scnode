@@ -1,5 +1,4 @@
 const Web3 = require("web3");
-const dbfactory = require("./db/dbfactory");
 const BlockChainEventHandler = require("./blockchainEventHandler");
 const MessageHandler = require("./messageHandler");
 const BlockchainProxy = require('./blockchainProxy');
