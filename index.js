@@ -19,7 +19,7 @@ const gameContractAbi = require('./Dice_SC.json')
 
 class SCClient {
 
-  constructor(wsUrl, dbhelper, fromAddress, privateKey) {
+  constructor(wsweb3, dbhelper, fromAddress, privateKey) {
 
     this.contractInfo = {
       fromAddress,
@@ -36,7 +36,7 @@ class SCClient {
 
     this.eventList = {};
 
-    this.web3 = new Web3(Web3.givenProvider || wsUrl);
+    this.web3 = wsweb3;
 
     this.autoRespondA = true;
     this.autoRespondB = true;
