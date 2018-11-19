@@ -7,6 +7,7 @@
  * 5. channelSettle
  */
 const Constants = require('./Constants');
+const ProofGenerator = require("./utils/proofGenerator");
 
 
 class BlockChainEventHandler {
@@ -20,10 +21,12 @@ class BlockChainEventHandler {
 
     this.eventManager = scclient.eventManager;
     this.dbhelper = scclient.dbhelper;
+    this.blockchainProxy = scclient.blockchainProxy;
+    this.proofGenerator = new ProofGenerator(scclient);
     
     this.paymentContract = new web3.eth.Contract(paymentContractAbi, paymentContractAddress);
     this.gameContract = new web3.eth.Contract(gameContractAbi, gameContractAddress);
-    console.log('BlockChainEventHandler constructor', this.from);
+    logInfo('BlockChainEventHandler constructor', this.from);
   }
 
   /**
@@ -49,16 +52,21 @@ class BlockChainEventHandler {
 
   }
 
+  /**
+   * handler for event ChannelOpen
+   * @param  error 
+   * @param  event 
+   */
   async onChannelOpen(error, event) {
-    console.log('onChannelOpen', event);
+    logInfo('onChannelOpen', event);
     // query channel status
     if(error){
-      console.log('onChannelOpen error', error);
+      logInfo('onChannelOpen error', error);
       return;
     }
     let { participant1, participant2, channelIdentifier, settle_timeout, amount } = event.returnValues;
 
-    console.log('BlockChainEventHandler constructor', this.from, participant1, participant2);
+    logInfo('BlockChainEventHandler constructor', this.from, participant1, participant2);
 
     if (participant1 != this.from && participant2 != this.from) {
       return;
@@ -70,14 +78,13 @@ class BlockChainEventHandler {
 
     if(!channel){
       // init channel here
-      if(openedBySelf){
         channel = {
           channelId: channelIdentifier,
-          partner: participant2,
+          partner: '',
           settleTimeout: settle_timeout,
-          totalDeposit: amount,
+          totalDeposit: 0,
           partnerTotalDeposit: 0,
-          localBalance: amount,
+          localBalance: 0,
           remoteBalance: 0,
           localLockedAmount: 0,
           remoteLockedAmount: 0,
@@ -86,35 +93,31 @@ class BlockChainEventHandler {
           remoteNonce: 0,
           status: Constants.CHANNEL_OPENED
         };
-
+      if(openedBySelf){
+        channel = Object.assign(channel, { partner: participant2, totalDeposit: amount, localBalance: amount });
       }else{
-        channel = {
-          channelId: channelIdentifier,
-          partner: participant1,
-          settleTimeout: settle_timeout,
-          totalDeposit: 0,
-          partnerTotalDeposit: amount,
-          localBalance: 0,
-          remoteBalance: amount,
-          localLockedAmount: 0,
-          remoteLockedAmount: 0,
-          currentRound: 0,
-          localNonce: 0,
-          remoteNonce: 0,
-          status: Constants.CHANNEL_OPENED
-        };
+        channel = Object.assign(channel, { partner: participant1, partnerTotalDeposit: amount, remoteBalance: amount });
       }
+
+      // add channel to db
       await this.dbhelper.addChannel(channel);
     }
+
+    //emit channel open event
     this.eventManager.sendChannelOpen(channel);
 
   }
 
+  /**
+   * Handler for event ChannelDeposit
+   * @param  error 
+   * @param  event 
+   */
   async onChannelDeposit(error, event) {
-    console.log('onChannelDeposit', event);
+    logInfo('onChannelDeposit', event);
     // 查询合约，更新通道双方deposit和余额
     if(error){
-      console.log('onChannelDeposit error', error);
+      logInfo('onChannelDeposit error', error);
       return;
     }
     let { channel_identifier, participant, total_deposit } = event.returnValues;
@@ -124,6 +127,7 @@ class BlockChainEventHandler {
 
     // query blockchain to verify event
 
+    // update channel balance
     let newAttr = {};
     if(participant == this.from){
       let delta = this.web3.utils.toBN(total_deposit)
@@ -143,46 +147,94 @@ class BlockChainEventHandler {
     }
 
     await this.dbhelper.updateChannel(channel_identifier, newAttr);
+
+    //TODO emit channel Desposit event
     
   }
 
+  /**
+   * Handler for event ChannelClose
+   * @param  error 
+   * @param  event 
+   */
   async onChannelClose(error, event) {
     // 查询合约和本地数据库
     // 决定是否提交BalanceProof
-    console.log('onChannelClose', event);
+    logInfo('onChannelClose', event);
     if(error){
-      console.log('onChannelClose error', error);
+      logInfo('onChannelClose error', error);
       return;
     }
     let { channel_identifier, closing, balanceHash } = event.returnValues;
     let channel = await this.dbhelper.getChannel(channel_identifier);
     if(!channel) return;
 
-    let status = Constants.CHANNEL_CLOSED;
-    await this.dbhelper.updateChannel(channel_identifier, {status});
-
     let closedBySelf = closing == this.from;
+    // update channel status
+    let status = Constants.CHANNEL_CLOSED;
+    let channelData = { closeType: Constants.CLOSE_FORCE, status, closedBySelf };
+    if (closedBySelf) {
+      channelData.localCloseBalanceHash = balanceHash;
+    } else {
+      channelData.remoteCloseBalanceHash = balanceHash;
+    };
+    await this.dbhelper.updateChannel(channel_identifier, channelData);
 
+    //TODO 设置settleChannel定时器
+    setTimeout(async () => {
+      await this.settleChannel(channel_identifier);
+    }, 120000);
+
+    let bet = await this.dbhelper.getBetByChannel({ channelId: channel.channelId, round: channel.currentRound });
     if(!closedBySelf){
+      if (!bet) return;
       // submit balance proof to blockchain, get BalanceProof from local DB
-      let remoteBalanceProof = await this.dbhelper.getCurrentTransfer(channel_identifier);
-      await this.blockChainProxy.updateBalanceProof(remoteBalanceProof);
+      let remoteBalanceProof = await this.proofGenerator.getBalanceProof(channel);
+      await this.blockchainProxy.updateBalanceProof(remoteBalanceProof.closing, remoteBalanceProof.balanceHash, remoteBalanceProof.nonce, remoteBalanceProof.signature);
     }else{
-      //update database here.
+      if (!bet) return;
+      // 发起方关闭通道
+      if (bet.positiveA == this.from) {
+        //提交initiatorSettle
+        if (bet.status >= Constants.BET_START && bet.status != Constants.BET_FINISH) {
+          let initiatorSettleData = await this.proofGenerator.getInitiatorSettleData(channel, bet);
 
+          await this.blockchainProxy.initiatorSettle(initiatorSettleData.channelIdentifier, initiatorSettleData.round, initiatorSettleData.betMask, initiatorSettleData.modulo, initiatorSettleData.positive, initiatorSettleData.negative, initiatorSettleData.initiatorHashR, initiatorSettleData.initiatorSignature, initiatorSettleData.acceptorR, initiatorSettleData.acceptorSignature, initiatorSettleData.initiatorR);
+
+        }else{
+          // 其他状态不认为赌局已开始，不提交游戏仲裁
+        }
+
+      }else{
+        //接收方关闭通道
+        if(bet.status >= Constants.BET_START && bet.status != Constants.BET_FINISH){
+          let acceptorSettleData = await this.proofGenerator.getAcceptorSettleData(channel, bet);
+          await this.blockchainProxy.acceptorSettle(acceptorSettleData.channelIdentifier, acceptorSettleData.round, acceptorSettleData.betMask, acceptorSettleData.modulo, acceptorSettleData.positive, acceptorSettleData.negative, acceptorSettleData.initiatorHashR, acceptorSettleData.initiatorSignature, acceptorSettleData.acceptorR);
+        }else{
+          //其他状态不认为赌局已经开始, 不提交游戏仲裁
+        }
+      }
     }
-
-    // 判断是否提交GameContract相关逻辑
-
-
-
   }
 
+  async settleChannel(channelId){
+    //refresh channel status
+    let channel = await this.dbhelper.getChannel(channelId);
+    let settleData = await this.proofGenerator.getSettleData(channel, channel.localCloseBalanceHash, channel.remoteCloseBalanceHash);
+    let { participant1, participant1_transferred_amount, participant1_locked_amount, participant1_lock_id, participant2, participant2_transferred_amount, participant2_locked_amount, participant2_lock_id } = settleData;
+    return await this.blockchainProxy.settle(participant1, participant1_transferred_amount, participant1_locked_amount, participant1_lock_id, participant2, participant2_transferred_amount, participant2_locked_amount, participant2_lock_id);
+  }
+
+  /**
+   * Handler for ChannelUpdateBalanceProof 
+   * @param  error 
+   * @param  event 
+   */
   async onChannelUpdateBalanceProof(error, event) {
-    console.log('onChannelUpdateBalanceProof', event);
+    logInfo('onChannelUpdateBalanceProof', event);
     // 查询合约，提交settle
     if(error){
-      console.log('onChannelUpdateBalanceProof error', error);
+      logInfo('onChannelUpdateBalanceProof error', error);
       return;
     }
 
@@ -190,115 +242,162 @@ class BlockChainEventHandler {
     let channel = await this.dbhelper.getChannel(channel_identifier);
     if (!channel) return;
     
-    let status = Constants.CHANNEL_UPDATEBALANCEPROOF;
-    await this.dbhelper.updateChannel(channel_identifier, {status});
+    let updateData = { status: Constants.CHANNEL_UPDATEBALANCEPROOF };
+    let closedBySelf = channel.closedBySelf;
+    if(closedBySelf){
+      updateData.remoteCloseBalanceHash = balanceHash;
+    }else{
+      updateData.localCloseBalanceHash= balanceHash;
+    }
+    await this.dbhelper.updateChannel(channel_identifier, updateData);
 
-    // 判断是否提交GameContract相关逻辑
 
   }
 
+  /**
+   * Handler for ChannelSettled 
+   * @param error 
+   * @param event 
+   */
   async onChannelSettle(error, event) {
-    console.log('onChannelSettle', event);
+    logInfo('onChannelSettle', event);
     // 查询合约，关闭通道，并更新结果
     if(error){
-      console.log('onChannelSettle error', error);
+      logInfo('onChannelSettle error', error);
       return;
     }
-    let { channel_identifier, lockedIdentifier, participant, transferToParticipantAmount } = event.returnValues;
-    let channel = await this.dbhelper.getChannel(channel_identifier);
+    let { channelIdentifier, participant1, participant2, lockedIdentifier, transferToParticipant1Amount, transferToParticipant2Amount } = event.returnValues;
+    let channel = await this.dbhelper.getChannel(channelIdentifier);
     if (!channel) return;
-    if (participant != this.from) return;
+    if (participant1 != this.from || participant2 != this.from) return;
+    await this.dbhelper.updateChannel(channelIdentifier, {
+      status: Constants.ChannelSettled,
+      localSettleBalance: participant1 == this.from? transferToParticipant1Amount: transferToParticipant2Amount,
+      remoteSettleBalance: participant1 == this.from? transferToParticipant2Amount: transferToParticipant1Amount,
+      closeLockIdentifier: lockedIdentifier,
+    });
 
-    let status = Constants.ChannelSettled;
-    await this.dbhelper.updateChannel(channel_identifier, {status});
-
-    //TODO check locked amount, query blockchain to get lock amount
-    let lockedAmount = 10;
-
-    if(lockedAmount > 0){
-      await this.blockChainProxy.unlock();
-    }else{
-      let status = 6;
-      await this.dbhelper.updateChannel(channel_identifier, {status});
-    }
+    // will unlock channel
+    setTimeout(async () => {
+      await this.blockchainProxy.unlock(participant1, participant2, lockedIdentifier);
+    }, 30000);
   }
 
+  /**
+   * Handler for event ChannelLockedSent 
+   * @param error 
+   * @param event 
+   */
   async onChannelLockedSent(error, event){
 
-    console.log('onChannelLockedSent', event);
+    logInfo('onChannelLockedSent', event);
     if(error){
-      console.log('onChannelLockedSent error', error);
+      logInfo('onChannelLockedSent error', error);
       return;
     }
-    let { channel_identifier, beneficiary, amount } = event.returnValues;
-    let channel = await this.dbhelper.getChannel(channel_identifier);
+    let { channelIdentifier, beneficiary, amount } = event.returnValues;
+    let channel = await this.dbhelper.getChannel(channelIdentifier);
     if (!channel) return;
-    if (participant != this.from) return;
 
-      let status = Constants.CHANNEL_UNLOCKFINISHED;
-      await this.dbhelper.updateChannel(channel_identifier, {status});
+    let updateData = { status: Constants.CHANNEL_UNLOCKFINISHED };
+    if(this.from == beneficiary){
+      updateData.remoteLockedSentAmount = amount;
+    }else{
+      updateData.localLockedSentAmount = amount;
+    }
+    await this.dbhelper.updateChannel(channelIdentifier, updateData);
+
   }
 
+  /**
+   * Handler for event ChannelLockedReturn 
+   * @param error 
+   * @param event 
+   */
   async onChannelLockedReturn(error, event){
 
-    console.log('onChannelLockedReturn', event);
+    logInfo('onChannelLockedReturn', event);
     if(error){
-      console.log('onChannelLockedReturn error', error);
+      logInfo('onChannelLockedReturn error', error);
       return;
     }
-    let { channel_identifier, beneficiary, amount } = event.returnValues;
-
-    let status = Constants.CHANNEL_UNLOCKFINISHED;
-    await this.dbhelper.updateChannel(channel_identifier, {status});
-  }
-
-  async onCooperativeSettle(error, event){
-
-    console.log('onCooperativeSettle', event);
-    if(error){
-      console.log('onCooperativeSettle error', error);
-      return;
-    }
-    let { channelIdentifier, participant1_balance, participant2_balance } = event.returnValues;
+    let { channelIdentifier, beneficiary, amount } = event.returnValues;
     let channel = await this.dbhelper.getChannel(channelIdentifier);
+    if (!channel) return;
 
-    let status = Constants.CHANNEL_UNLOCKFINISHED;
-    console.log("after cooperativesettle, will update channel");
-    await this.dbhelper.updateChannel(channelIdentifier, { status });
-
-    this.eventManager.sendCooperativeSettled(channel);
+    let updateData = { status: Constants.CHANNEL_UNLOCKFINISHED };
+    if(this.from == beneficiary){
+      updateData.localLockedReturnAmount = amount;
+    }else{
+      updateData.remoteLockedReturnAmount = amount;
+    }
+    await this.dbhelper.updateChannel(channelIdentifier, updateData);
   }
 
 
 
+  /**
+   * Handler for event GameInitiatorSettled
+   * @param error 
+   * @param event 
+   */
   async onGameInitiatorSettled(error, event){
-    console.log('onGameInitiatorSettled', event);
+    logInfo('onGameInitiatorSettled', event);
     if (error) {
-      console.log("onGameInitiatorSettled error", error);
+      logInfo("onGameInitiatorSettled error", error);
       return;
     }
     let { initiator, acceptor, roundIdentifier, winner } = event.returnValues;
 
   }
   async onGameAcceptorSettled(error, event){
-    console.log('onGameAcceptorSettled', event);
+    logInfo('onGameAcceptorSettled', event);
     if(error){
-      console.log('onGameAcceptorSettled error', error);
+      logInfo('onGameAcceptorSettled error', error);
       return;
     }
     let { initiator, acceptor, roundIdentifier, lastRevealBlock } = event.returnValues;
 
+    // initiator reveal ra
+    if(this.from == initiator){
+      let channelIdentifier = await this.blockchainProxy.getChannelIdentifier(acceptor);
+      let diceInfo = await this.blockchainProxy.getRoundIdentifier_to_diceInfo(roundIdentifier);
+      let bet = await this.dbhelper.getBetByChannel({channelId: channelIdentifier, hashRa: diceInfo.initiatorHashR});
+      await this.blockchainProxy.initiatorReveal(channelIdentifier, bet.round, bet.ra);
+    }
+
   }
+
   async onGameInitiatorRevealed(error, event){
-    console.log('onGameInitiatorRevealed', event);
+    logInfo('onGameInitiatorRevealed', event);
     if(error){
-      console.log('onGameInitiatorRevealed error', error);
+      logInfo('onGameInitiatorRevealed error', error);
       return;
     }
     let { initiator, acceptor, roundIdentifier, winner } = event.returnValues;
-
   }
 
+  /**
+   * Handler for event CooperativeSettle
+   * @param error 
+   * @param event
+   */
+  async onCooperativeSettle(error, event){
+
+    logInfo('onCooperativeSettle', event);
+    if(error){
+      logInfo('onCooperativeSettle error', error);
+      return;
+    }
+    let { channelIdentifier, participant1_balance, participant2_balance } = event.returnValues;
+    let channel = await this.dbhelper.getChannel(channelIdentifier);
+
+    let updateData = { status: Constants.CHANNEL_UNLOCKFINISHED };
+    logInfo("after cooperativesettle, will update channel");
+    await this.dbhelper.updateChannel(channelIdentifier, updateData);
+
+    this.eventManager.sendCooperativeSettled(channel);
+  }
 }
 
 module.exports = BlockChainEventHandler;

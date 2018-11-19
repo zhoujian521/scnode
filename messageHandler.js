@@ -45,7 +45,7 @@ class MessageHandler {
     // 检测本地数据 和 BetRequest进行比对
     // 如果符合条件，给对方发送LockedTransfer
     console.time('onBetRequest');
-    console.log('BetRequest Received: ', message);
+    logInfo('BetRequest Received: ', message);
 
     //check BetRequest
     let { gameContractAddress, channelIdentifier, round, betMask, modulo, value, positiveA, hashRa, signatureA } = message;
@@ -53,25 +53,30 @@ class MessageHandler {
     if (!channel || channel.status != Constants.CHANNEL_OPENED) return;
 
     if(!this.messageValidator.checkBetRequest(message, channel.partner)){
-      console.log("check Message BetRequest failed");
+      logInfo("check Message BetRequest failed");
       return;
     }
     
 
     let bet = await this.scclient.dbhelper.getBetByChannel({ channelId: channelIdentifier, round: channel.currentRound });
     if (bet != null && bet.status != Constants.BET_FINISH) {
-      console.log("There are unfinished bet, can not start new bet");
+      logInfo("There are unfinished bet, can not start new bet");
       return;
     }
 
     let winAmount = GameRule.getPossibleWinAmount(betMask, modulo, value);
+
+    if (parseInt(channel.remoteBalance) - parseInt(winAmount) < 0 || parseInt(channel.localBalance) - parseInt(value) < 0) {
+      logError("insufficient balance to bet localBalance", channel.localBalance, "winAmount", winAmount, "betValue", value, "remoteBalance", channel.remoteBalance);
+      return false;
+    }
     //save bet to database
     bet = { gameContractAddress, channelId: channelIdentifier, round, betMask, modulo, value, positiveA, negativeB: this.scclient.from, hashRa, signatureA, winAmount, status: Constants.BET_INIT };
     await this.scclient.dbhelper.addBet(bet);
     await this.scclient.dbhelper.updateChannel(channelIdentifier, { currentRound: round });
 
 
-    if (this.scclient.autoRespondB) {
+    if (this.scclient.autoRespondBetRequest) {
       let lockedTransfer = await this.getLockedTransfer(channelIdentifier, winAmount, round, channel.localNonce);
 
       //send LockedTransfer to opposite
@@ -144,9 +149,9 @@ class MessageHandler {
     let transferred_amount = this.web3.utils.toBN(current_transferred_amount).add(this.web3.utils.toBN(deltaTransferAmount)).toString(10);
     let locked_amount = this.web3.utils.toBN(current_locked_amount).add(this.web3.utils.toBN(deltaLockedAmount)).toString(10);
 
-    console.log("check BalanceHash", transferred_amount, locked_amount, round, balanceHash);
+    logInfo("check BalanceHash", transferred_amount, locked_amount, round, balanceHash);
     let newBalanceHash = this.web3.utils.soliditySha3(transferred_amount, locked_amount, round);
-    console.log("check newBalanceHash", newBalanceHash);
+    logInfo("check newBalanceHash", newBalanceHash);
 
     let isValidBalanceHash = false;
     if(newBalanceHash == balanceHash){
@@ -158,7 +163,7 @@ class MessageHandler {
   // update localBalance & remoteBalance when send or receive LockedTransfer
   async updateBalance(channelId, deltaTransferAmount, deltaLockedAmount, nonceData, localOrRemote) {
 
-    console.log("UPDATE CHANNEL BALANCE: ", channelId, deltaTransferAmount, deltaLockedAmount, localOrRemote);
+    logInfo("UPDATE CHANNEL BALANCE: ", channelId, deltaTransferAmount, deltaLockedAmount, localOrRemote);
 
     let channel = await this.scclient.dbhelper.getChannel(channelId);
 
@@ -207,7 +212,7 @@ class MessageHandler {
   async onLockedTransfer(message) {
     // 检测是否符合条件, 如果符合条件 给对方发送LockedTransferR
     console.time('onLockedTransfer');
-    console.log('LockedTransfer Received: ', message);
+    logInfo('LockedTransfer Received: ', message);
 
     let {channelIdentifier, balanceHash, nonce, signature } = message;
 
@@ -218,7 +223,7 @@ class MessageHandler {
     let bet = await this.scclient.dbhelper.getBetByChannel({ channelId: channelIdentifier, round: channel.currentRound });
     if (!bet || bet.status != Constants.BET_INIT) return;
 
-    console.log('bet is', bet);
+    logInfo('bet is', bet);
 
     if(bet.positiveA != this.scclient.from){
       return;
@@ -226,13 +231,13 @@ class MessageHandler {
     let round = bet.round;
 
     if(!this.messageValidator.checkLockedTransfer(message, channel.partner)){
-      console.error("check Message LockedTransfer failed");
+      logError("check Message LockedTransfer failed");
       return;
     }
     // check Balance Hash
     let { isValidBalanceHash, transferred_amount, locked_amount } = await this.checkBalanceHash(channelIdentifier, balanceHash, 0, bet.winAmount, round, channel.remoteNonce);
     if (!isValidBalanceHash){
-      console.error("check balanceHash failed");
+      logError("check balanceHash failed");
       return;
     } 
 
@@ -244,7 +249,7 @@ class MessageHandler {
 
     await this.scclient.dbhelper.updateBet(bet.betId, { status: Constants.BET_LOCK_ONE });
 
-    if(this.scclient.autoRespondA){
+    if (this.scclient.autoRespondLockedTransfer) {
       //generate LockedTransfer
       let lockedTransfer = await this.getLockedTransfer(channelIdentifier, bet.value, round, channel.localNonce);
       //send LockedR to opposite
@@ -259,7 +264,7 @@ class MessageHandler {
     // 检测是否符合条件
     // 发送BetResponse
     console.time('onLockedTransferR');
-    console.log('LockedTransferR Received: ', message);
+    logInfo('LockedTransferR Received: ', message);
 
     //check LockedTransferR
     let {channelIdentifier, balanceHash, nonce, signature } = message;
@@ -269,7 +274,7 @@ class MessageHandler {
     if (!channel || channel.status != Constants.CHANNEL_OPENED) return;
 
     let bet = await this.scclient.dbhelper.getBetByChannel({ channelId: channelIdentifier, round: channel.currentRound });
-    console.log('bet is ', bet);
+    logInfo('bet is ', bet);
     if (!bet || bet.status != Constants.BET_LOCK_ONE) return;
 
     if(bet.negativeB != this.scclient.from){
@@ -278,7 +283,7 @@ class MessageHandler {
 
 
     if (!this.messageValidator.checkLockedTransfer(message, channel.partner)) {
-      console.log("check Message LockedTransferR failed");
+      logInfo("check Message LockedTransferR failed");
       return;
     }
 
@@ -287,7 +292,7 @@ class MessageHandler {
     // check Balance Hash
     let { isValidBalanceHash, transferred_amount, locked_amount } = await this.checkBalanceHash(channelIdentifier, balanceHash, 0, bet.value, round, channel.remoteNonce);
     if (!isValidBalanceHash){
-      console.error("check balanceHash failed");
+      logError("check balanceHash failed");
       return;
     } 
 
@@ -298,7 +303,7 @@ class MessageHandler {
     await this.scclient.dbhelper.updateBet(bet.betId, { status: Constants.BET_LOCK_TWO });
       
 
-    if(this.scclient.autoRespondB){
+    if(this.scclient.autoRespondLockedTransferR){
       //generate Rb 
       let rb = RandomUtil.generateRandomFromSeed("hello");
       const betResponse = this.scclient.messageGenerator.generateBetResponse(channelIdentifier, round, bet.betMask, bet.modulo, bet.positiveA, bet.negativeB, bet.hashRa, bet.signatureA, rb);
@@ -306,7 +311,7 @@ class MessageHandler {
       await this.scclient.dbhelper.updateBet(bet.betId, { rb, signatureB: betResponse.signatureB, status: Constants.BET_LOCK_TWO });
       //send BetResponse to opposite
       await this.scclient.dbhelper.updateBet(bet.betId, { status: Constants.BET_START });
-      console.log(this.eventManager.sendBetPlaced);
+      logInfo(this.eventManager.sendBetPlaced);
       this.eventManager.sendBetPlaced(channel, bet);
       this.socket.emit('BetResponse', betResponse);
     }
@@ -318,7 +323,7 @@ class MessageHandler {
     // 检测是否符合条件
     // 判断输赢 赢：发送Preimage， 输：发送Preimage+DirectTransfer
     console.time('onBetResponse');
-    console.log('BetResponse Received: ', message);
+    logInfo('BetResponse Received: ', message);
 
     // check BetResponse
     let { channelIdentifier, round, Rb: rb, betMask, modulo, positiveA, negativeB, hashRa, signatureA, signatureB } = message;
@@ -341,20 +346,20 @@ class MessageHandler {
     if (bet.positiveA != this.scclient.from) { return; }
 
     if (!this.messageValidator.checkBetResponse(message, channel.partner)) {
-      console.log("check Message BetResponse failed");
+      logInfo("check Message BetResponse failed");
       return;
     }
 
-    console.log("bet is", bet);
+    logInfo("bet is", bet);
     // check Win or Lose
     let isWinner = GameRule.winOrLose(this.web3, betMask, modulo, bet.ra, rb, true);
 
     // update Bet in database
     await this.scclient.dbhelper.updateBet(bet.betId, { rb, signatureB, winner: isWinner, status: Constants.BET_START });
-    console.log(this.eventManager.sendBetPlaced);
+    logInfo(this.eventManager.sendBetPlaced);
     this.eventManager.sendBetPlaced(channel, bet);
 
-    if(this.scclient.autoRespondA){
+    if (this.scclient.autoRespondBetResponse) {
     // send Preimage to opposite
       const preimageMessage = this.scclient.messageGenerator.generatePreimage(channelIdentifier, round, bet.ra);
       await this.scclient.dbhelper.updateBet(bet.betId, { status: Constants.BET_PREIMAGE });
@@ -369,7 +374,7 @@ class MessageHandler {
     // 检测是否符合条件
     // 判断输赢 赢：doNothing 设置timeout(如果一直未改变，关闭通道) 输：DirectTransfer
     console.time('onPreimage');
-    console.log('Preimage Received: ', message);
+    logInfo('Preimage Received: ', message);
 
     let { channelIdentifier, ra, round } = message;
     // check Preimage
@@ -384,7 +389,7 @@ class MessageHandler {
     if (this.scclient.from != bet.negativeB) return;
 
     if (!this.messageValidator.checkPreimage(message, bet.hashRa)) {
-      console.error("check Preimage hash failed");
+      logError("check Preimage hash failed");
       return;
     }
 
@@ -399,23 +404,25 @@ class MessageHandler {
 
 
 
-    if (this.scclient.autoRespondB) {
+    if (this.scclient.autoRespondPreimage) {
       // If lose send DirectTransfer to opposite
-      await this.scclient.dbhelper.updateBet(bet.betId, { status: Constants.BET_DIRECT_TRANSFER });
+      await this.scclient.dbhelper.updateBet(bet.betId, {
+        status: Constants.BET_DIRECT_TRANSFER
+      });
       if (!isWinner) {
         const directTransfer = await this.getDirectTransfer(channelIdentifier, bet.winAmount, bet.winAmount, round, channel.localNonce);
-        console.log('Lose the bet, will send direct transfer to oppsoite', directTransfer);
+        logInfo("Lose the bet, will send direct transfer to oppsoite", directTransfer);
         await this.scclient.dbhelper.addPayment({
           betId: bet.betId,
           fromAddr: this.scclient.from,
           toAddr: channel.partner,
           value: bet.winAmount
         });
-        this.socket.emit('DirectTransfer', directTransfer);
+        this.socket.emit("DirectTransfer", directTransfer);
       } else {
         const directTransfer = await this.getDirectTransfer(channelIdentifier, 0, bet.winAmount, round, channel.localNonce);
-        console.log('Win the bet, will cancel locked transfer', directTransfer);
-        this.socket.emit('DirectTransfer', directTransfer);
+        logInfo("Win the bet, will cancel locked transfer", directTransfer);
+        this.socket.emit("DirectTransfer", directTransfer);
       }
     }
     console.timeEnd("onPreimage");
@@ -426,7 +433,7 @@ class MessageHandler {
     // 检测是否符合条件
     // 更新数据库
     console.time("onDirectTransfer");
-    console.log('DirectTransfer Received: ', message);
+    logInfo('DirectTransfer Received: ', message);
     // do nothing
     //check DirectTransfer
     let {channelIdentifier, balanceHash, nonce, signature } = message;
@@ -455,7 +462,7 @@ class MessageHandler {
     }
     let { isValidBalanceHash, transferred_amount, locked_amount } = await this.checkBalanceHash(channelIdentifier, balanceHash, deltaTransferAmount, deltaLockedAmount, 0, channel.remoteNonce);
     if (!isValidBalanceHash){
-      console.error("check balanceHash failed");
+      logError("check balanceHash failed");
       return;
     } 
 
@@ -467,12 +474,12 @@ class MessageHandler {
 
 
 
-    if (this.scclient.autoRespondA) {
+    if (this.scclient.autoRespondDirectTransfer) {
       // If lose send DirectTransferR to opposite
       let directTransfer = null;
       if (bet.winner != 1) {
         directTransfer = await this.getDirectTransfer(channelIdentifier, bet.value, bet.value, round, channel.localNonce);
-        console.log("Lose the bet, will send direct transfer to oppsoite", directTransfer);
+        logInfo("Lose the bet, will send direct transfer to oppsoite", directTransfer);
         await this.scclient.dbhelper.addPayment({
           betId: bet.betId,
           fromAddr: this.scclient.from,
@@ -481,14 +488,18 @@ class MessageHandler {
         });
       } else {
         directTransfer = await this.getDirectTransfer(channelIdentifier, 0, bet.value, round, channel.localNonce);
-        console.log("Win the bet, will cancel locked transfer", directTransfer);
+        logInfo("Win the bet, will cancel locked transfer", directTransfer);
       }
       // await this.scclient.dbhelper.updateBet(bet.betId, { status: Constants.BET_DIRECT_TRANSFER });
 
-
       // update bet status to finished
       if (deltaTransferAmount > 0) {
-        await this.scclient.dbhelper.addPayment({ betId: bet.betId, fromAddr: channel.partner, toAddr: this.scclient.from, value: deltaTransferAmount });
+        await this.scclient.dbhelper.addPayment({
+          betId: bet.betId,
+          fromAddr: channel.partner,
+          toAddr: this.scclient.from,
+          value: deltaTransferAmount
+        });
         this.eventManager.sendPaymentReceived(channel, bet);
       }
 
@@ -506,7 +517,7 @@ class MessageHandler {
  // 检测是否符合条件
     // 更新数据库
     console.time("onDirectTransferR");
-    console.log("DirectTransferR Received: ", message);
+    logInfo("DirectTransferR Received: ", message);
     // do nothing
     //check DirectTransfer
     let {channelIdentifier, balanceHash, nonce, signature } = message;
@@ -528,7 +539,7 @@ class MessageHandler {
 
     let { isValidBalanceHash, transferred_amount, locked_amount } = await this.checkBalanceHash(channelIdentifier, balanceHash, deltaTransferAmount, deltaLockedAmount, 0, channel.remoteNonce);
     if (!isValidBalanceHash){
-      console.error("check balanceHash failed");
+      logError("check balanceHash failed");
       return;
     } 
 
@@ -551,7 +562,7 @@ class MessageHandler {
 
     this.socket.emit('BetSettle', { channelIdentifier, round });
 
-    console.log('eventManager', this.eventManager);
+    logInfo('eventManager', this.eventManager);
     this.eventManager.sendBetSettled(channel, bet);
 
     console.timeEnd("onDirectTransferR");
@@ -559,7 +570,7 @@ class MessageHandler {
 
   async onBetSettle(message){
     console.time("onBetSettle");
-    console.log("BetSettle Received: ", message);
+    logInfo("BetSettle Received: ", message);
     // do nothing
     //check DirectTransfer
     let { channelIdentifier, round } = message; 
@@ -576,7 +587,7 @@ class MessageHandler {
       status: Constants.BET_FINISH
     });
 
-    console.log('eventManager', this.eventManager);
+    logInfo('eventManager', this.eventManager);
     this.eventManager.sendBetSettled(channel, bet);
     console.timeEnd("onBetSettle");
 
@@ -586,7 +597,7 @@ class MessageHandler {
 
   async onCooperativeSettle(message){
 
-    console.log('CooperativeSettleRequest Received: ', message);
+    logInfo('CooperativeSettleRequest Received: ', message);
     let { paymentContract, channelIdentifier, p1, p1Balance, p2, p2Balance, signature: p1Signature } = message;
     // check balance
     let channel = await this.scclient.dbhelper.getChannel(channelIdentifier);
@@ -597,13 +608,13 @@ class MessageHandler {
       ||p1Balance != channel.remoteBalance 
       || p2Balance != channel.localBalance
       ){
-        console.error('balance is not correct');
+        logError('balance is not correct');
         return;
       }
     // check partner signature
 
     if(!this.scclient.messageValidator.checkCooperativeSettleRequest(message, p1)){
-      console.error("invalid signature for cooperativeSettleRequest");
+      logError("invalid signature for cooperativeSettleRequest");
       return;
     }
 

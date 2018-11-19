@@ -81,7 +81,7 @@ class MessageValidator {
     let { channelIdentifier, round, ra } = message;
     let newHashRa = this.web3.utils.sha3(ra);
     let isValid = newHashRa == hashRa;
-    console.log("checkPreimage", hashRa, newHashRa);
+    logInfo("checkPreimage", hashRa, newHashRa);
     return isValid;
   }
 
@@ -90,7 +90,7 @@ class MessageValidator {
 
     let messagehash = this.web3.utils.soliditySha3(this.paymentContractAddress, channelIdentifier, p1, p1Balance, p2, p2Balance);
 
-    console.log("checkCooperativeSettleRequest messagehash is ", messagehash);
+    logInfo("checkCooperativeSettleRequest messagehash is ", messagehash);
 
     let isValid = Ecsign.checkSignature(messagehash, signature, address);
     return isValid;

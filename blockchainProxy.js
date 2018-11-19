@@ -43,7 +43,7 @@ class BlockchainProxy {
       toBlock: 'latest'
     },
     function(error, event){
-      console.log(event);
+      logInfo(event);
     });
   }
 
@@ -78,6 +78,9 @@ class BlockchainProxy {
   }
 
   async closeChannel(partner, balanceHash, nonce, signature) {
+
+    logInfo('closeChannel params', partner, balanceHash, nonce, signature);
+
     let data = this.paymentContract
       .methods
       .closeChannel(partner, balanceHash, nonce, signature)
@@ -86,9 +89,11 @@ class BlockchainProxy {
   }
 
   async updateBalanceProof(closing, balanceHash, nonce, signature) {
+
+    logInfo('updateBalanceProof params', closing, balanceHash, nonce, signature);
     let data = this.paymentContract
       .methods
-      .updateBalanceProof(closing, balanceHash, nonce, signature)
+      .nonclosingUpdateBalanceProof(closing, balanceHash, nonce, signature)
       .encodeABI();
     return await this.sendTransaction(this.paymentContractAddress, 0, data);
   }
@@ -103,9 +108,10 @@ class BlockchainProxy {
     participant2_locked_amount,
     participant2_lock_id
   ) {
+    logInfo('settle params', participant1, participant1_transferred_amount, participant1_locked_amount, participant1_lock_id, participant2, participant2_transferred_amount, participant2_locked_amount, participant2_lock_id);
     let data = this.paymentContract
       .methods
-      .settle(
+      .settleChannel(
         participant1,
         participant1_transferred_amount,
         participant1_locked_amount,
@@ -184,6 +190,10 @@ class BlockchainProxy {
     acceptorSignature,
     initiatorR
   ) {
+
+    
+    logInfo("initiatorSettle params: ", channelIdentifier, round, betMask, modulo, positive, negative, initiatorHashR, initiatorSignature, acceptorR, acceptorSignature, initiatorR);
+
     let data = this.gameContract
       .methods
       .initiatorSettle(
@@ -214,6 +224,10 @@ class BlockchainProxy {
     initiatorSignature,
     acceptorR
   ) {
+
+
+    logInfo("acceptorSettle params", channelIdentifier, round, betMask, modulo, positive, negative, initiatorHashR, initiatorSignature, acceptorR);
+
     let data = this.gameContract
       .methods
       .acceptorSettle(
@@ -232,6 +246,10 @@ class BlockchainProxy {
   }
 
   async initiatorReveal(channelIdentifier, round, initiatorR) {
+
+    logInfo("initiatorReveal params", channelIdentifier, round, initiatorR);
+
+
     let data = this.gameContract
       .methods
       .initiatorReveal(channelIdentifier, round, initiatorR).encodeABI();
@@ -276,7 +294,7 @@ class BlockchainProxy {
 
     var serializedTx = tx.serialize();
 
-    console.log(
+    logInfo(
       `Attempting to send signed tx:  0x${serializedTx.toString(
         "hex"
       )}\n------------------------`
@@ -287,7 +305,7 @@ class BlockchainProxy {
         "0x" + serializedTx.toString("hex"),
         function(err, hash) {
           if (!err) {
-            console.log(hash);
+            logInfo(hash);
             resolve(hash);
           } else {
             reject(err);

@@ -138,7 +138,7 @@ class messageGenerator {
       balanceB
     );
 
-    console.log("genreateCooperativeSettleRequest messagehash is ", messagehash);
+    logInfo("genreateCooperativeSettleRequest messagehash is ", messagehash);
 
     messagehash = new Buffer(messagehash.substr(2), "hex");
     let signature = Ecsign.myEcsignToHex(

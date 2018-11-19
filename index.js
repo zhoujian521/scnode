@@ -6,16 +6,27 @@ const EventManager = require('./eventManager');
 const Ecsign = require('./utils/ecsign');
 const MessageGenerator = require('./utils/messageGenerator');
 const MessageValidator = require('./utils/messageValidator');
+const ProofGenerator = require('./utils/proofGenerator');
 const RandomUtil = require('./utils/random');
 const Constants = require('./Constants');
 const GameRule = require('./gameRule');
 
-const paymentContractAddress = '0x5167553b547973487Aeaf2413B68f290d5266FE0';
+const paymentContractAddress = '0x86364E2a57C4040d94Ab1440E48693c6e7483c30';
 const paymentContractAbi = require('./Payment_ETH.json')
-const gameContractAddress = '0xE44C8bA910A179A801267442224F9B7f3065E0ec';
+const gameContractAddress = '0x406a9aCC62d488f7396e24750767aa8E665252C2';
 const gameContractAbi = require('./Dice_SC.json')
 
-// console.log(paymentContractAbi);
+// logInfo(paymentContractAbi);
+function logInfo(...params){
+  console.log(params);
+}
+function logError(...params){
+  console.log('---------------------------', params);
+}
+
+global.logInfo = logInfo;
+global.logError = logError;
+
 
 class SCClient {
 
@@ -38,14 +49,19 @@ class SCClient {
 
     this.web3 = wsweb3;
 
-    this.autoRespondA = true;
-    this.autoRespondB = true;
-    
+    this.autoRespondBetRequest = true;
+    this.autoRespondLockedTransfer = true;
+    this.autoRespondLockedTransferR = true;
+    this.autoRespondBetResponse = true;
+    this.autoRespondPreimage = false;
+    this.autoRespondDirectTransfer = true;
+    this.autoRespondDirectTransferR = true;
 
     // 启动blockchainEventHandler 
     this.blockchainProxy = new BlockchainProxy(this.web3, this.contractInfo);
     this.messageGenerator = new MessageGenerator(this.web3, fromAddress, privateKey, gameContractAddress, paymentContractAddress);
     this.messageValidator = new MessageValidator(this.web3, gameContractAddress, paymentContractAddress);
+    this.proofGenerator= new ProofGenerator(this);
 
     this.eventManager = new EventManager(this.eventList);
     new BlockChainEventHandler(this.web3, this.contractInfo, this).start();
@@ -55,12 +71,12 @@ class SCClient {
 
   }
 
-  setAutoRespond(autoRespondA, autoRespondB) {
+  // setAutoRespond(autoRespondA, autoRespondB) {
 
-    this.autoRespondA = autoRespondA;
-    this.autoRespondB = autoRespondB;
+  //   this.autoRespondA = autoRespondA;
+  //   this.autoRespondB = autoRespondB;
 
-  }
+  // }
 
   initMessageHandler(socket){
     this.socket = socket;
@@ -110,19 +126,19 @@ class SCClient {
     console.time('startBet');
     let channel = await this.dbhelper.getChannel(channelIdentifier);
     if (!channel || channel.status != Constants.CHANNEL_OPENED) {
-      console.error('channel not exist in db');
+      logError('channel not exist in db');
       return;
     }
     console.timeEnd('startBet');
 
     let lastBet = await this.dbhelper.getBetByChannel({channelId: channelIdentifier, round: channel.currentRound});
     if(lastBet != null && lastBet.status != Constants.BET_FINISH){
-      console.log("There are unfinished bet, can not start new bet");
+      logInfo("There are unfinished bet, can not start new bet");
       return false;
     } 
     let round = channel.currentRound == null ? 1 : channel.currentRound + 1;
 
-    console.log('new Round is ', round);
+    logInfo('new Round is ', round);
 
     //generate Random from seed
     let ra = RandomUtil.generateRandomFromSeed(randomSeed);
@@ -131,11 +147,18 @@ class SCClient {
     let betRequestMessage = this.messageGenerator.generateBetRequest(channelIdentifier, round, betMask, modulo, this.from, partnerAddress, hashRa);
     betRequestMessage.value = betValue;
 
-    console.log('betRequestMessage', betRequestMessage);
+    logInfo('betRequestMessage', betRequestMessage);
 
 
     console.time('addBet');
     let winAmount = GameRule.getPossibleWinAmount(betMask, modulo, betValue);
+
+    if (parseInt(channel.remoteBalance) - parseInt(winAmount) < 0 || parseInt(channel.localBalance) - parseInt(betValue) < 0) {
+      logError("insufficient balance to bet localBalance", channel.localBalance, "betValue", betValue, "remoteBalance", channel.remoteBalance, "winAmount", winAmount);
+      return false;
+    }
+
+
     //save Bet to Database
     await this.dbhelper.addBet({
       gameContractAddress: betRequestMessage.gameContractAddress,
@@ -166,13 +189,20 @@ class SCClient {
    */
   async closeChannel(partnerAddress) {
 
-    //fetch channel Hash
-    let balanceHash = '';
-    let nonce = '';
-    let signature = '';
+    let channelIdentifier = await this.blockchainProxy.getChannelIdentifier(partnerAddress);
+    let channel = await this.dbhelper.getChannel(channelIdentifier);
+
+    if (channel.status != Constants.CHANNEL_OPENED) {
+      logError("Channel is not open now");
+      return;
+    }
+
+    let closeData = await this.proofGenerator.getCloseData(channel);
+    let { balanceHash, nonce, signature } = closeData;
 
     //强制关
     return await this.blockchainProxy.closeChannel(partnerAddress, balanceHash, nonce, signature);
+
   }
 
   /**
@@ -185,7 +215,7 @@ class SCClient {
     let channel = await this.dbhelper.getChannel(channelIdentifier);
 
     if(!channel || channel.status != Constants.CHANNEL_OPENED){
-      console.error("channel not exist or channel is not open");
+      logError("channel not exist or channel is not open");
       return;
     }
 
@@ -197,6 +227,29 @@ class SCClient {
 
     return true;
 
+  }
+
+  /**
+   * 通道清算
+   * @param partnerAddress 
+   */
+  async settleChannel(partnerAddress){
+    //refresh channel status
+    let channelIdentifier = await this.blockchainProxy.getChannelIdentifier(partnerAddress);
+    let channel = await this.dbhelper.getChannel(channelIdentifier);
+    let settleData = await this.proofGenerator.getSettleData(channel, channel.localCloseBalanceHash, channel.remoteCloseBalanceHash);
+    let { participant1, participant1_transferred_amount, participant1_locked_amount, participant1_lock_id, participant2, participant2_transferred_amount, participant2_locked_amount, participant2_lock_id } = settleData;
+    return await this.blockchainProxy.settle(participant1, participant1_transferred_amount, participant1_locked_amount, participant1_lock_id, participant2, participant2_transferred_amount, participant2_locked_amount, participant2_lock_id);
+  }
+
+
+  /**
+   * 解锁通道锁定部分资金
+   * @param channelId 
+   * @param lockIdentifier 
+   */
+  async unlockChannel(partnerAddress, lockIdentifier){
+    await this.blockchainProxy.unlock(this.from, partnerAddress, lockIdentifier);
   }
 
   
@@ -218,7 +271,7 @@ class SCClient {
 
   on(event, callback){
 
-    console.log("onEvent set event now", event, callback);
+    logInfo("onEvent set event now", event, callback);
 
     this.eventList[event] = callback; 
     return this;

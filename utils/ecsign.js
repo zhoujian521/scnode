@@ -25,7 +25,7 @@ function mySha3(web3, contractAddress, channelIdentifier, p1, p1Balance, p2, p2B
 
 function checkSignature(messageHash, signatureHex, address) {
 
-    console.log('checkSignature', messageHash, signatureHex, address);
+    logInfo('checkSignature', messageHash, signatureHex, address);
 
     let messageHashBuffer = new Buffer(messageHash.replace("0x", ""), "hex")
     let sigDecoded = ethUtil.fromRpcSig(signatureHex);
@@ -33,7 +33,7 @@ function checkSignature(messageHash, signatureHex, address) {
     let recoveredAddress = ethUtil.pubToAddress(recoveredPub).toString("hex")
     recoveredAddress = "0x" + recoveredAddress;
 
-    console.log('recoveredAddress', recoveredAddress);
+    logInfo('recoveredAddress', recoveredAddress);
     return recoveredAddress.toLowerCase() == address.toLowerCase();
 
 

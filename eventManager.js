@@ -19,7 +19,7 @@ class eventManager {
   }
 
   async sendChannelOpen(channel) {
-    console.log("sendChannelOpen", this.eventList);
+    logInfo("sendChannelOpen", this.eventList);
 
     this.eventList.ChannelOpen && this.eventList.ChannelOpen(channel);
   }
