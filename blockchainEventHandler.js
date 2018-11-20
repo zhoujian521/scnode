@@ -269,7 +269,7 @@ class BlockChainEventHandler {
     let { channelIdentifier, participant1, participant2, lockedIdentifier, transferToParticipant1Amount, transferToParticipant2Amount } = event.returnValues;
     let channel = await this.dbhelper.getChannel(channelIdentifier);
     if (!channel) return;
-    if (participant1 != this.from || participant2 != this.from) return;
+    if (participant1 != this.from && participant2 != this.from) return;
     await this.dbhelper.updateChannel(channelIdentifier, {
       status: Constants.ChannelSettled,
       localSettleBalance: participant1 == this.from? transferToParticipant1Amount: transferToParticipant2Amount,
@@ -392,7 +392,7 @@ class BlockChainEventHandler {
     let { channelIdentifier, participant1_balance, participant2_balance } = event.returnValues;
     let channel = await this.dbhelper.getChannel(channelIdentifier);
 
-    let updateData = { status: Constants.CHANNEL_UNLOCKFINISHED };
+    let updateData = { status: Constants.CHANNEL_UNLOCKFINISHED, closeType: Constants.CLOSE_COOPERATIVE, localSettleBalance: participant1_balance, remoteSettleBalance: participant2_balance };
     logInfo("after cooperativesettle, will update channel");
     await this.dbhelper.updateChannel(channelIdentifier, updateData);
 

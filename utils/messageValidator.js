@@ -79,7 +79,7 @@ class MessageValidator {
 
   checkPreimage(message, hashRa) {
     let { channelIdentifier, round, ra } = message;
-    let newHashRa = this.web3.utils.sha3(ra);
+    let newHashRa = this.web3.utils.soliditySha3(ra);
     let isValid = newHashRa == hashRa;
     logInfo("checkPreimage", hashRa, newHashRa);
     return isValid;

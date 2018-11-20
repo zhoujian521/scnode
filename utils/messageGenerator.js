@@ -95,7 +95,7 @@ class messageGenerator {
       positiveA,
       negativeB,
       hashRa,
-      signatureA,
+      {t:'bytes', v:signatureA},
       Rb
     );
 

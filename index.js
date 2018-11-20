@@ -53,7 +53,7 @@ class SCClient {
     this.autoRespondLockedTransfer = true;
     this.autoRespondLockedTransferR = true;
     this.autoRespondBetResponse = true;
-    this.autoRespondPreimage = false;
+    this.autoRespondPreimage = true;
     this.autoRespondDirectTransfer = true;
     this.autoRespondDirectTransferR = true;
 
@@ -141,8 +141,8 @@ class SCClient {
     logInfo('new Round is ', round);
 
     //generate Random from seed
-    let ra = RandomUtil.generateRandomFromSeed(randomSeed);
-    let hashRa = this.web3.utils.sha3(ra);
+    let ra = RandomUtil.generateRandomFromSeed2(this.web3, randomSeed);
+    let hashRa = this.web3.utils.soliditySha3(ra);
     //generate BetRequest Message
     let betRequestMessage = this.messageGenerator.generateBetRequest(channelIdentifier, round, betMask, modulo, this.from, partnerAddress, hashRa);
     betRequestMessage.value = betValue;
@@ -250,6 +250,16 @@ class SCClient {
    */
   async unlockChannel(partnerAddress, lockIdentifier){
     await this.blockchainProxy.unlock(this.from, partnerAddress, lockIdentifier);
+  }
+
+  async initiatorSettle(channelIdentifier, betId){
+    let channel = await this.dbhelper.getChannel(channelIdentifier);
+    let bet = await this.dbhelper.getBet(betId);
+
+    let initiatorSettleData = await this.proofGenerator.getInitiatorSettleData(channel, bet);
+
+    await this.blockchainProxy.initiatorSettle(initiatorSettleData.channelIdentifier, initiatorSettleData.round, parseInt(initiatorSettleData.betMask), initiatorSettleData.modulo, initiatorSettleData.positive, initiatorSettleData.negative, initiatorSettleData.initiatorHashR, initiatorSettleData.initiatorSignature, initiatorSettleData.acceptorR, initiatorSettleData.acceptorSignature, initiatorSettleData.initiatorR);
+
   }
 
   

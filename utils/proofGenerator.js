@@ -90,7 +90,7 @@ class ProofGenerator{
             positive,
             negative,
             initiatorHashR,
-            initiatorSignature: this.web3.utils.hexToBytes(initiatorHashR),
+            initiatorSignature: this.web3.utils.hexToBytes(initiatorSignature),
             acceptorR,
             acceptorSignature: this.web3.utils.hexToBytes(acceptorSignature),
             initiatorR            

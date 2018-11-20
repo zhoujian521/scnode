@@ -194,6 +194,7 @@ class BlockchainProxy {
     
     logInfo("initiatorSettle params: ", channelIdentifier, round, betMask, modulo, positive, negative, initiatorHashR, initiatorSignature, acceptorR, acceptorSignature, initiatorR);
 
+    try{
     let data = this.gameContract
       .methods
       .initiatorSettle(
@@ -210,7 +211,13 @@ class BlockchainProxy {
         initiatorR
       )
       .encodeABI();
-    return await this.sendTransaction(this.gameContract, 0, data);
+      let result = await this.sendTransaction(this.gameContractAddress, 0, data);
+      return result;
+    }catch(err){
+      logError(err);
+    }
+
+      return null;
   }
 
   async acceptorSettle(
@@ -242,7 +249,7 @@ class BlockchainProxy {
       acceptorR
 
     ).encodeABI();
-    return await this.sendTransaction(this.gameContract, 0, data);
+    return await this.sendTransaction(this.gameContractAddress, 0, data);
   }
 
   async initiatorReveal(channelIdentifier, round, initiatorR) {
@@ -253,7 +260,7 @@ class BlockchainProxy {
     let data = this.gameContract
       .methods
       .initiatorReveal(channelIdentifier, round, initiatorR).encodeABI();
-    return await this.sendTransaction(this.gameContract, 0, data);
+    return await this.sendTransaction(this.gameContractAddress, 0, data);
   }
 
   async getResult(roundIdentifier) {
@@ -287,6 +294,8 @@ class BlockchainProxy {
       data: data,
       chainId: chainId
     };
+
+    // console.log('rawTransaction', rawTransaction);
 
     var privKey = new Buffer(this.privateKey, "hex");
     var tx = new Tx(rawTransaction);

@@ -6,6 +6,12 @@ function generateRandomFromSeed(seed){
 }
 
 
+function generateRandomFromSeed2(web3, seed) {
+    return web3.utils.randomHex(32);
+}
+
+
 module.exports = {
     generateRandomFromSeed,
+    generateRandomFromSeed2,
 }
