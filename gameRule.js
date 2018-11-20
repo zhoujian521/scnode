@@ -19,7 +19,7 @@ function getPossibleWinAmount(betMask, modulo, amount){
 
     let rollUnder = calcRollUnder(betMask, modulo);
 
-    const HOUSE_EDGE_PERCENT = 2;
+    const HOUSE_EDGE_PERCENT = 0;
     // const HOUSE_EDGE_MINIMUM_AMOUNT = 0.0003 * 1e18;
 
     let houseEdge = amount * HOUSE_EDGE_PERCENT / 100;
