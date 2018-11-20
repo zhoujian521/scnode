@@ -1,7 +1,6 @@
 /**
- *
+ * 返回给外部的消息类
  * Message Type
- *
  * 1. ChannelOpen
  * 2. BetPlaced
  * 3. BetSettled

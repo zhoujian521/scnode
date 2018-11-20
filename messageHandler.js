@@ -1,11 +1,20 @@
 /**
- * 1. BetRequest
- * 2. LockedTransfer
- * 3. LockedTransferR
- * 4. BetResponse
- * 5. Preimage/DirectTransfer
- * 6. DirectTransfer
+ * P2P消息处理类
+ * 
+ * Bet消息收发顺序    
+ * 1. A ----------BetRequest------------> B
+ * 2. A <---------LockedTransfer--------- B
+ * 3. A ----------LockedTransferR-------> B
+ * 4. A <---------BetResponse------------ B
+ * 5. A ----------Preimage--------------> B
+ * 6. A <---------DirectTransfer--------- B
+ * 7. A ----------DirectTransferR-------> B
+ * 8. A <---------BetSettle-------------- B
  *
+ * 
+ * CooperativeSettle消息收发顺序
+ * 1. A ----CooperativeSettleRequest----> B
+ * 
  */
 
 
@@ -41,6 +50,13 @@ class MessageHandler {
       .on("CooperativeSettleRequest", this.onCooperativeSettle.bind(this));
   }
 
+  /**
+   * Handler for accept message BetRequest
+   * 1. 检查消息合法性
+   * 2. 将Bet信息存入数据库
+   * 3. 自动同意BetRequest，构造LockedTransfer消息回复对方
+   * @param message 
+   */
   async onBetRequest(message) {
     // 检测本地数据 和 BetRequest进行比对
     // 如果符合条件，给对方发送LockedTransfer
@@ -95,6 +111,14 @@ class MessageHandler {
   }
 
 
+  /**
+   * 构造LockedTransfer消息
+   * @param channelIdentifier 通道ID
+   * @param winAmount 赢取金额
+   * @param round 轮数
+   * @param lastNonce 上一个nonce 
+   * @returns 返回LockedTransfer消息
+   */
   async getLockedTransfer(channelIdentifier, winAmount, round, lastNonce) {
     //generate LockedTransfer
     let currentTransfer = await this.scclient.dbhelper.getLatestTransfer({ channelId: channelIdentifier, nonce: lastNonce, owned: 0 });
@@ -118,6 +142,15 @@ class MessageHandler {
   }
 
 
+  /**
+   * 构造DirectTransfer消息
+   * @param channelIdentifier 通道ID
+   * @param sendAmount        发送金额
+   * @param cancelLockedAmount 取消锁定金额
+   * @param round              轮数
+   * @param lastNonce          上一个nonce
+   * @returns DirectTransfer消息
+   */
   async getDirectTransfer(channelIdentifier, sendAmount, cancelLockedAmount, round, lastNonce){
 
     //generate LockedTransfer
@@ -141,6 +174,16 @@ class MessageHandler {
 
   }
 
+  /**
+   * 根据本地状态检测对方发送的balanceHash是否合法
+   * @param channelIdentifier 通道ID
+   * @param balanceHash       对方余额hash
+   * @param deltaTransferAmount 应该转的金额
+   * @param deltaLockedAmount   应该锁定的金额
+   * @param round               轮数
+   * @param lastNonce           上一个nonce
+   * @returns {Object} 是否合法，已经新的转出金额 和 新的锁定金额
+   */
   async checkBalanceHash(channelIdentifier, balanceHash, deltaTransferAmount, deltaLockedAmount, round, lastNonce) {    
     let currentTransfer = await this.scclient.dbhelper.getLatestTransfer({ channelId: channelIdentifier, nonce: lastNonce, owned: 1 });
 
@@ -160,7 +203,16 @@ class MessageHandler {
     return { isValidBalanceHash, transferred_amount, locked_amount };
   }
 
-  // update localBalance & remoteBalance when send or receive LockedTransfer
+  
+  /**
+   * 更新通道余额
+   * @param channelId           通道ID
+   * @param deltaTransferAmount 新增转出金额
+   * @param deltaLockedAmount   新增锁定金额
+   * @param nonceData           己方nonce/对方nonce
+   * @param localOrRemote       更新己方余额 或者对方余额
+   * @returns null
+   */
   async updateBalance(channelId, deltaTransferAmount, deltaLockedAmount, nonceData, localOrRemote) {
 
     logInfo("UPDATE CHANNEL BALANCE: ", channelId, deltaTransferAmount, deltaLockedAmount, localOrRemote);
@@ -209,6 +261,13 @@ class MessageHandler {
 
   }
 
+  /**
+   * Handler for accept LockedTransfer message
+   * 1. 检查消息合法性
+   * 2. 更新通道余额和transfer数据
+   * 3. 生成LockedTransferR，发送给对方
+   * @param message LockedTransfer消息
+   */
   async onLockedTransfer(message) {
     // 检测是否符合条件, 如果符合条件 给对方发送LockedTransferR
     console.time('onLockedTransfer');
@@ -260,6 +319,13 @@ class MessageHandler {
 
   }
 
+  /**
+   * Handler for accept LockedTransferR消息
+   * 1. 检查消息合法性
+   * 2. 更新通道余额和transfer数据
+   * 3. 生成BetResponse消息，发送给对方
+   * @param message LockedTranferR消息体
+   */
   async onLockedTransferR(message) {
     // 检测是否符合条件
     // 发送BetResponse
@@ -319,6 +385,14 @@ class MessageHandler {
     console.timeEnd('onLockedTransferR');
   }
 
+  /**
+   * Handler for accepte BetResponse消息
+   * 1. 检查消息合法性
+   * 2. 判断输赢，更新赌局
+   * 3. 发送BetPlaced消息给外部监听器
+   * 4. 生成Preimage消息发送给对方
+   * @param message BetResponse消息体
+   */
   async onBetResponse(message) {
     // 检测是否符合条件
     // 判断输赢 赢：发送Preimage， 输：发送Preimage+DirectTransfer
@@ -370,6 +444,13 @@ class MessageHandler {
     console.timeEnd('onBetResponse');
   }
 
+  /**
+   * Handler for accept Preimage
+   * 1. 检验消息合法性
+   * 2. 计算输赢，更新赌局
+   * 3. 生成DirectTransfer，发送给对方
+   * @param message Preimage消息体
+   */
   async onPreimage(message) {
     // 检测是否符合条件
     // 判断输赢 赢：doNothing 设置timeout(如果一直未改变，关闭通道) 输：DirectTransfer
@@ -429,6 +510,15 @@ class MessageHandler {
 
   }
 
+  /**
+   * Handler for accept DirectTransfer
+   * 1. 检查消息合法性
+   * 2. 更新通道余额和Tranfer
+   * 3. 记录Payment到数据库， 发送PaymentReceived消息给外部
+   * 4. 生成DirectTransferR，发送给对方
+   * 5. 
+   * @param message DirectTransfer消息体
+   */
   async onDirectTransfer(message) {
     // 检测是否符合条件
     // 更新数据库
@@ -513,6 +603,15 @@ class MessageHandler {
     console.timeEnd("onDirectTransfer");
   }
 
+  /**
+   * Handler for accept DirectTransferR mesage
+   * 1. 检查消息合法性
+   * 2. 更新通道余额和transfer
+   * 3. 更新Bet数据
+   * 4. 发送BetSettled事件给外部监听器
+   * 5. 生成BettleSettle消息，发送给对方
+   * @param message DirectTransferR消息体
+   */
   async onDirectTransferR(message){
  // 检测是否符合条件
     // 更新数据库
@@ -562,12 +661,19 @@ class MessageHandler {
 
     this.socket.emit('BetSettle', { channelIdentifier, round });
 
-    logInfo('eventManager', this.eventManager);
+    logInfo('eventManager', this.eventManage);
     this.eventManager.sendBetSettled(channel, bet);
 
     console.timeEnd("onDirectTransferR");
   }
 
+  /**
+   * Handler for accept BetSettle message
+   * 1. 检查消息合法性
+   * 2. 更新bet
+   * 3. 发送BetSettled消息给外部事件监听器
+   * @param  message 
+   */
   async onBetSettle(message){
     console.time("onBetSettle");
     logInfo("BetSettle Received: ", message);
@@ -595,6 +701,12 @@ class MessageHandler {
 
 
 
+  /**
+   * Handler for accept CooperativeSettleRequest message
+   * 1. 检查消息合法性：余额/签名
+   * 2. 构造CooperativeSettle完整消息，发送给区块链以关闭通道
+   * @param message CooperativeSettleRequest message body 
+   */
   async onCooperativeSettle(message){
 
     logInfo('CooperativeSettleRequest Received: ', message);

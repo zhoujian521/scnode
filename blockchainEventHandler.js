@@ -1,10 +1,21 @@
 // subscribe all events from contract
 /**
- * 1. channelOpen
- * 2. channelDeposit
- * 3. channelClose
- * 4. channelUpdateBalanceProof
- * 5. channelSettle
+ * 监控链上支付合约和游戏合约返回的各种事件，并做响应的处理
+ * 处理事件列表
+ * PaymentContract:
+ * 1. ChannelOpened
+ * 2. ChannelNewDeposit
+ * 3. CooperativeSettled
+ * 4. ChannelClosed
+ * 5. NonclosingUpdateBalanceProof
+ * 6. ChannelSettled
+ * 7. ChannelLockedSent
+ * 8. ChannelLockedReturn
+ * 
+ * GameContract:
+ * 1. InitiatorSettled
+ * 2. AcceptorSettled
+ * 3. InitiatorRevealed
  */
 const Constants = require('./Constants');
 const ProofGenerator = require("./utils/proofGenerator");
@@ -30,7 +41,7 @@ class BlockChainEventHandler {
   }
 
   /**
-   * 开始监听处理区块链消息
+   * 开启监听处理区块链消息
    */
   start(){
 
@@ -54,20 +65,22 @@ class BlockChainEventHandler {
 
   /**
    * handler for event ChannelOpen
+   * 1. 数据库添加通道信息到本地
+   * 2. 对外抛出ChannelOpen消息
    * @param  error 
    * @param  event 
    */
   async onChannelOpen(error, event) {
     logInfo('onChannelOpen', event);
-    // query channel status
+
+    // 检查消息是否合法
     if(error){
       logInfo('onChannelOpen error', error);
       return;
     }
     let { participant1, participant2, channelIdentifier, settle_timeout, amount } = event.returnValues;
 
-    logInfo('BlockChainEventHandler constructor', this.from, participant1, participant2);
-
+    logInfo('BlockChainEventHandler constructor', this.from, participant1, participant2)
     if (participant1 != this.from && participant2 != this.from) {
       return;
     }
@@ -110,6 +123,7 @@ class BlockChainEventHandler {
 
   /**
    * Handler for event ChannelDeposit
+   * 1. 更新数据库中通道信息 totalDeposit, localBalance, partnerTotalDeposti, remoteBalance
    * @param  error 
    * @param  event 
    */
@@ -154,6 +168,14 @@ class BlockChainEventHandler {
 
   /**
    * Handler for event ChannelClose
+   * 
+   * 1. 更新通道状态和相关数据 status, localCloseBalanceHash, remoteCloseBalanceHash
+   * 2. 设置结算通道的定时器，此处设置为120s，TODO: 可能会更改
+   * 3. 如果是己方提交的强关请求
+   *     a. 如果自己是玩家，提交initiatorSettleData到游戏合约
+   *     b. 如果自己是庄家，需要提交acceptorSettleData到游戏合约（TODO)
+   * 4. 如果不是己方提交的强关请求，提交相应的balanceProof到通道合约
+   * 
    * @param  error 
    * @param  event 
    */
@@ -180,7 +202,7 @@ class BlockChainEventHandler {
     };
     await this.dbhelper.updateChannel(channel_identifier, channelData);
 
-    //TODO 设置settleChannel定时器
+    //设置settleChannel定时器
     setTimeout(async () => {
       await this.settleChannel(channel_identifier);
     }, 120000);
@@ -188,12 +210,12 @@ class BlockChainEventHandler {
     let bet = await this.dbhelper.getBetByChannel({ channelId: channel.channelId, round: channel.currentRound });
     if(!closedBySelf){
       if (!bet) return;
-      // submit balance proof to blockchain, get BalanceProof from local DB
+      // 非强关方提交相关余额证据
       let remoteBalanceProof = await this.proofGenerator.getBalanceProof(channel);
       await this.blockchainProxy.updateBalanceProof(remoteBalanceProof.closing, remoteBalanceProof.balanceHash, remoteBalanceProof.nonce, remoteBalanceProof.signature);
     }else{
       if (!bet) return;
-      // 发起方关闭通道
+      // 强关方是玩家
       if (bet.positiveA == this.from) {
         //提交initiatorSettle
         if (bet.status >= Constants.BET_START && bet.status != Constants.BET_FINISH) {
@@ -206,7 +228,7 @@ class BlockChainEventHandler {
         }
 
       }else{
-        //接收方关闭通道
+        //强关方是庄家
         if(bet.status >= Constants.BET_START && bet.status != Constants.BET_FINISH){
           let acceptorSettleData = await this.proofGenerator.getAcceptorSettleData(channel, bet);
           await this.blockchainProxy.acceptorSettle(acceptorSettleData.channelIdentifier, acceptorSettleData.round, acceptorSettleData.betMask, acceptorSettleData.modulo, acceptorSettleData.positive, acceptorSettleData.negative, acceptorSettleData.initiatorHashR, acceptorSettleData.initiatorSignature, acceptorSettleData.acceptorR);
@@ -217,6 +239,11 @@ class BlockChainEventHandler {
     }
   }
 
+  /**
+   * 提交结算通道请求
+   * @param channelId 通道ID
+   * @returns 返回区块链提交结果
+   */
   async settleChannel(channelId){
     //refresh channel status
     let channel = await this.dbhelper.getChannel(channelId);
@@ -227,6 +254,7 @@ class BlockChainEventHandler {
 
   /**
    * Handler for ChannelUpdateBalanceProof 
+   * 1. 更新通道相关数据 status, remoteCloseBalanceHash/localCloseBalanceHash
    * @param  error 
    * @param  event 
    */
@@ -256,6 +284,8 @@ class BlockChainEventHandler {
 
   /**
    * Handler for ChannelSettled 
+   * 1. 更新通道相关数据 status localSettleBalance remoteSettleBalance closeLockIdentifier
+   * 2. 设置定时器 解锁通道锁定余额 此处设置时间为30s TODO: 可能会修改
    * @param error 
    * @param event 
    */
@@ -285,6 +315,7 @@ class BlockChainEventHandler {
 
   /**
    * Handler for event ChannelLockedSent 
+   * 1. 更新通道状态 status remoteLockedSentAmount/localLockedSentAmount
    * @param error 
    * @param event 
    */
@@ -311,6 +342,7 @@ class BlockChainEventHandler {
 
   /**
    * Handler for event ChannelLockedReturn 
+   * 1. 更新通道状态 status localLockedReturnAmount/remoteLockedReturnAmount
    * @param error 
    * @param event 
    */
@@ -338,6 +370,7 @@ class BlockChainEventHandler {
 
   /**
    * Handler for event GameInitiatorSettled
+   * 1. Do nothing
    * @param error 
    * @param event 
    */
@@ -350,6 +383,13 @@ class BlockChainEventHandler {
     let { initiator, acceptor, roundIdentifier, winner } = event.returnValues;
 
   }
+
+  /**
+   * Handler for event GameAcceptorSettled
+   * 1. 如果是玩家，提交initiatorRevealData到游戏合约进行仲裁 
+   * @param error 
+   * @param event 
+   */
   async onGameAcceptorSettled(error, event){
     logInfo('onGameAcceptorSettled', event);
     if(error){
@@ -368,6 +408,12 @@ class BlockChainEventHandler {
 
   }
 
+  /**
+   * Handler for GameInitiatorRevealed Event
+   * 1. Do nothing
+   * @param error 
+   * @param event 
+   */
   async onGameInitiatorRevealed(error, event){
     logInfo('onGameInitiatorRevealed', event);
     if(error){
@@ -379,6 +425,8 @@ class BlockChainEventHandler {
 
   /**
    * Handler for event CooperativeSettle
+   * 1. 更新通道状态 status localSettleBalance remoteSettleBalance
+   * 2. 发送CooperativeSettled事件给前端
    * @param error 
    * @param event
    */

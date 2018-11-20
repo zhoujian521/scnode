@@ -1,5 +1,17 @@
+/**
+ * 游戏规则类
+ * 1. 判断输赢
+ * 2. 计算赌注和可赢的金额
+ */
 const BN = require('bn.js');
 
+/**
+ * 计算可以赢得的金额
+ * @param betMask 下注内容
+ * @param modulo 游戏类型 2硬币 6骰子 36两个骰子 100Ethroll
+ * @param amount 下注金额
+ * @returns {Integer} 可赢得金额
+ */
 function getPossibleWinAmount(betMask, modulo, amount){
 
     betMask = parseInt(betMask);
@@ -21,6 +33,16 @@ function getPossibleWinAmount(betMask, modulo, amount){
 
 }
 
+/**
+ * 判断输赢
+ * @param web3 
+ * @param betMask 下注内容
+ * @param modulo 游戏类型 2硬币 6骰子 36两个骰子 100Ethroll
+ * @param ra 玩家随机数
+ * @param rb 庄家随机数
+ * @param isPlayer 调用者是否为玩家
+ * @returns {Boolean} 返回输赢结果
+ */
 function winOrLose(web3, betMask, modulo, ra, rb, isPlayer){
 
     let hash = web3.utils.soliditySha3(ra, rb);
@@ -45,6 +67,12 @@ function winOrLose(web3, betMask, modulo, ra, rb, isPlayer){
         return !playerWin;
 }
 
+/**
+ * 计算modulo < 40时 betMask对应的胜率
+ * @param betMask 
+ * @param modulo 
+ * @returns 返回具体的胜率
+ */
 function calcRollUnder(betMask, modulo){
 
     let POPCNT_MULT = new BN('0000000000002000000000100000000008000000000400000000020000000001', 16)

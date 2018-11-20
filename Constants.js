@@ -1,4 +1,6 @@
-
+/**
+ * 系统基本常数定义
+ */
 const CHANNEL_INIT = 1;
 const CHANNEL_OPENED = 2;
 const CHANNEL_CLOSED = 3;
