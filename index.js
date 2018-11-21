@@ -343,7 +343,7 @@ class SCClient {
   }
 
   async getPayments(condition, offset, limit){
-    return await this.dbhelper.getPayment(condition, offset, limit);
+    return await this.dbhelper.getPayments(condition, offset, limit);
   }
 
 
