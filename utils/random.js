@@ -8,9 +8,9 @@ var crypto = require("crypto");
  * @param seed 随机数种子
  * @returns {String} 返回hex的随机数
  */
-function generateRandomFromSeed(seed){
-    let randomBuffer = crypto.randomBytes(64);
-    return randomBuffer.toString('hex');
+function generateRandomFromSeed2(web3, seed){
+    let randomBuffer = crypto.randomBytes(32);
+    return '0x' + randomBuffer.toString('hex');
 }
 
 
@@ -20,7 +20,7 @@ function generateRandomFromSeed(seed){
  * @param seed 种子
  * @returns {String} 返回hex的随机数
  */
-function generateRandomFromSeed2(web3, seed) {
+function generateRandomFromSeed1(web3, seed) {
     let ra = web3.utils.randomHex(32);
     return web3.utils.padLeft(ra, 64);
 }
@@ -30,3 +30,7 @@ module.exports = {
     generateRandomFromSeed,
     generateRandomFromSeed2,
 }
+
+
+// let ra = generateRandomFromSeed("123");
+// console.log(ra);
