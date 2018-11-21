@@ -20,7 +20,7 @@ function generateRandomFromSeed2(web3, seed){
  * @param seed 种子
  * @returns {String} 返回hex的随机数
  */
-function generateRandomFromSeed1(web3, seed) {
+function generateRandomFromSeed(web3, seed) {
     let ra = web3.utils.randomHex(32);
     return web3.utils.padLeft(ra, 64);
 }
