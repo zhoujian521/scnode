@@ -60,7 +60,6 @@ class MessageHandler {
   async onBetRequest(message) {
     // 检测本地数据 和 BetRequest进行比对
     // 如果符合条件，给对方发送LockedTransfer
-    console.time('onBetRequest');
     logInfo('BetRequest Received: ', message);
 
     //check BetRequest
@@ -106,7 +105,6 @@ class MessageHandler {
       });
       this.socket.emit("LockedTransfer", lockedTransfer);
     }
-    console.timeEnd('onBetRequest');
 
   }
 
@@ -270,7 +268,6 @@ class MessageHandler {
    */
   async onLockedTransfer(message) {
     // 检测是否符合条件, 如果符合条件 给对方发送LockedTransferR
-    console.time('onLockedTransfer');
     logInfo('LockedTransfer Received: ', message);
 
     let {channelIdentifier, balanceHash, nonce, signature } = message;
@@ -315,7 +312,6 @@ class MessageHandler {
       await this.scclient.dbhelper.updateBet(bet.betId, { status: Constants.BET_LOCK_TWO });
       this.socket.emit('LockedTransferR', lockedTransfer);
     }
-    console.timeEnd('onLockedTransfer');
 
   }
 
@@ -329,7 +325,6 @@ class MessageHandler {
   async onLockedTransferR(message) {
     // 检测是否符合条件
     // 发送BetResponse
-    console.time('onLockedTransferR');
     logInfo('LockedTransferR Received: ', message);
 
     //check LockedTransferR
@@ -382,7 +377,6 @@ class MessageHandler {
       this.socket.emit('BetResponse', betResponse);
     }
 
-    console.timeEnd('onLockedTransferR');
   }
 
   /**
@@ -396,7 +390,6 @@ class MessageHandler {
   async onBetResponse(message) {
     // 检测是否符合条件
     // 判断输赢 赢：发送Preimage， 输：发送Preimage+DirectTransfer
-    console.time('onBetResponse');
     logInfo('BetResponse Received: ', message);
 
     // check BetResponse
@@ -441,7 +434,6 @@ class MessageHandler {
 
     }
 
-    console.timeEnd('onBetResponse');
   }
 
   /**
@@ -454,7 +446,6 @@ class MessageHandler {
   async onPreimage(message) {
     // 检测是否符合条件
     // 判断输赢 赢：doNothing 设置timeout(如果一直未改变，关闭通道) 输：DirectTransfer
-    console.time('onPreimage');
     logInfo('Preimage Received: ', message);
 
     let { channelIdentifier, ra, round } = message;
@@ -506,7 +497,6 @@ class MessageHandler {
         this.socket.emit("DirectTransfer", directTransfer);
       }
     }
-    console.timeEnd("onPreimage");
 
   }
 
@@ -522,7 +512,6 @@ class MessageHandler {
   async onDirectTransfer(message) {
     // 检测是否符合条件
     // 更新数据库
-    console.time("onDirectTransfer");
     logInfo('DirectTransfer Received: ', message);
     // do nothing
     //check DirectTransfer
@@ -600,7 +589,6 @@ class MessageHandler {
       this.socket.emit("DirectTransferR", directTransfer);
     }
 
-    console.timeEnd("onDirectTransfer");
   }
 
   /**
@@ -615,7 +603,6 @@ class MessageHandler {
   async onDirectTransferR(message){
  // 检测是否符合条件
     // 更新数据库
-    console.time("onDirectTransferR");
     logInfo("DirectTransferR Received: ", message);
     // do nothing
     //check DirectTransfer
@@ -664,7 +651,6 @@ class MessageHandler {
     logInfo('eventManager', this.eventManage);
     this.eventManager.sendBetSettled(channel, bet);
 
-    console.timeEnd("onDirectTransferR");
   }
 
   /**
@@ -675,7 +661,6 @@ class MessageHandler {
    * @param  message 
    */
   async onBetSettle(message){
-    console.time("onBetSettle");
     logInfo("BetSettle Received: ", message);
     // do nothing
     //check DirectTransfer
@@ -695,7 +680,6 @@ class MessageHandler {
 
     logInfo('eventManager', this.eventManager);
     this.eventManager.sendBetSettled(channel, bet);
-    console.timeEnd("onBetSettle");
 
   }
 

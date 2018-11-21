@@ -137,13 +137,11 @@ class SCClient {
   async startBet(channelIdentifier, partnerAddress, betMask, modulo, betValue, randomSeed = "") {
 
     //检测通道状态
-    console.time('startBet');
     let channel = await this.dbhelper.getChannel(channelIdentifier);
     if (!channel || channel.status != Constants.CHANNEL_OPENED) {
       logError('channel not exist in db');
       return;
     }
-    console.timeEnd('startBet');
 
     //检测当前是否有未完成的赌局
     let lastBet = await this.dbhelper.getBetByChannel({channelId: channelIdentifier, round: channel.currentRound});
@@ -165,7 +163,6 @@ class SCClient {
     logInfo('betRequestMessage', betRequestMessage);
 
 
-    console.time('addBet');
     let winAmount = GameRule.getPossibleWinAmount(betMask, modulo, betValue);
 
     //检测通道两端的余额是否够完成赌局
@@ -194,7 +191,6 @@ class SCClient {
 
     // then send BetRequest to partner
     await this.socket.emit('BetRequest', betRequestMessage);
-    console.timeEnd('addBet');
     return true;
   }
 
