@@ -21,7 +21,8 @@ function generateRandomFromSeed(seed){
  * @returns {String} 返回hex的随机数
  */
 function generateRandomFromSeed2(web3, seed) {
-    return web3.utils.randomHex(32);
+    let ra = web3.utils.randomHex(32);
+    return web3.utils.padLeft(ra, 64);
 }
 
 

@@ -22,7 +22,7 @@ class eventManager {
 
     this.eventList.ChannelOpen && this.eventList.ChannelOpen(channel);
   }
-  async sendChannelSettled() {
+  async sendChannelSettled(channel) {
     this.eventList.ChannelSettled && this.eventList.ChannelSettled(channel);
   }
 

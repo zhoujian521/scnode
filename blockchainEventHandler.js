@@ -202,6 +202,7 @@ class BlockChainEventHandler {
     };
     await this.dbhelper.updateChannel(channel_identifier, channelData);
 
+    this.eventManager.sendChannelClosed(Object.assign(channel, channelData));
     //设置settleChannel定时器
     setTimeout(async () => {
       await this.settleChannel(channel_identifier);
@@ -237,6 +238,7 @@ class BlockChainEventHandler {
         }
       }
     }
+
   }
 
   /**
@@ -279,6 +281,7 @@ class BlockChainEventHandler {
     }
     await this.dbhelper.updateChannel(channel_identifier, updateData);
 
+    this.eventManager.sendBalanceProofUpdated(Object.assign(channel, updateData));
 
   }
 
@@ -300,17 +303,20 @@ class BlockChainEventHandler {
     let channel = await this.dbhelper.getChannel(channelIdentifier);
     if (!channel) return;
     if (participant1 != this.from && participant2 != this.from) return;
-    await this.dbhelper.updateChannel(channelIdentifier, {
+    let newAttr = {
       status: Constants.ChannelSettled,
       localSettleBalance: participant1 == this.from? transferToParticipant1Amount: transferToParticipant2Amount,
       remoteSettleBalance: participant1 == this.from? transferToParticipant2Amount: transferToParticipant1Amount,
       closeLockIdentifier: lockedIdentifier,
-    });
+    };
+    await this.dbhelper.updateChannel(channelIdentifier, newAttr);
 
     // will unlock channel
     setTimeout(async () => {
       await this.blockchainProxy.unlock(participant1, participant2, lockedIdentifier);
     }, 30000);
+
+    this.eventManager.sendChannelSettled(Object.assign(channel, newAttr));
   }
 
   /**
@@ -444,7 +450,7 @@ class BlockChainEventHandler {
     logInfo("after cooperativesettle, will update channel");
     await this.dbhelper.updateChannel(channelIdentifier, updateData);
 
-    this.eventManager.sendCooperativeSettled(channel);
+    this.eventManager.sendCooperativeSettled(Object.assign(channel, updateData));
   }
 }
 
