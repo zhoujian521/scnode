@@ -307,8 +307,8 @@ class SCClient {
    * 返回所有通道信息
    * @returns {List} 通道列表
    */
-  async getAllChannels() {
-    return await this.dbhelper.getChannels();
+  async getAllChannels(condition, offset, limit) {
+    return await this.dbhelper.getChannels(condition, offset, limit);
   }
 
   /**
@@ -317,7 +317,9 @@ class SCClient {
    * @returns {Object} 单个通道信息
    */
   async getChannel(partnerAddress) {
-    return {};
+    let channelIdentifier = await this.blockchainProxy.getChannelIdentifier(partnerAddress);
+    let channel = await this.dbhelper.getChannel(channelIdentifier);
+    return channel;
   }
 
   /**
@@ -328,7 +330,7 @@ class SCClient {
    * @returns {List} 赌局列表信息
    */
   async getAllBets(condition, offset, limit) {
-    return await this.dbhelper.getBets();
+    return await this.dbhelper.getBets(condition, offset, limit);
   }
 
   /**
@@ -339,6 +341,14 @@ class SCClient {
   async getBetById(betId) {
     return await this.dbhelper.getBet(betId)
   }
+
+  async getPayments(condition, offset, limit){
+    return await this.dbhelper.getPayment(condition, offset, limit);
+  }
+
+
+
+
 
   /**
    * 设置事件监听callback
