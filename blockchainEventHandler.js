@@ -406,7 +406,7 @@ class BlockChainEventHandler {
 
     // initiator reveal ra
     if(this.from == initiator){
-      let channelIdentifier = await this.blockchainProxy.getChannelIdentifier(acceptor);
+      let channelIdentifier = await this.scclient.blockchainQuery.getChannelIdentifier(acceptor);
       let diceInfo = await this.blockchainProxy.getRoundIdentifier_to_diceInfo(roundIdentifier);
       let bet = await this.dbhelper.getBetByChannel({channelId: channelIdentifier, hashRa: diceInfo.initiatorHashR});
       await this.blockchainProxy.initiatorReveal(channelIdentifier, bet.round, bet.ra);

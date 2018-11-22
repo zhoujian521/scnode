@@ -20,7 +20,6 @@
 
 const Ecsign = require('./utils/ecsign');
 const MessageGenerator = require('./utils/messageGenerator');
-const RandomUtil = require('./utils/random');
 const GameRule = require('./gameRule')
 const Constants = require('./Constants');
 
@@ -366,7 +365,7 @@ class MessageHandler {
 
     if(this.scclient.autoRespondLockedTransferR){
       //generate Rb 
-      let rb = this.scclient.generateRandomHex("hello");
+      let rb = await this.scclient.cryptohelper.generateRandomHex("hello");
       const betResponse = this.scclient.messageGenerator.generateBetResponse(channelIdentifier, round, bet.betMask, bet.modulo, bet.positiveA, bet.negativeB, bet.hashRa, bet.signatureA, rb);
       // update bet info
       await this.scclient.dbhelper.updateBet(bet.betId, { rb, signatureB: betResponse.signatureB, status: Constants.BET_LOCK_TWO });

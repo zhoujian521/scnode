@@ -7,12 +7,12 @@ const Web3 = require("web3");
 const BlockChainEventHandler = require("./blockchainEventHandler");
 const MessageHandler = require("./messageHandler");
 const BlockchainProxy = require('./blockchainProxy');
+const BlockchainQuery = require('./blockchainQuery');
 const EventManager = require('./eventManager');
 const Ecsign = require('./utils/ecsign');
 const MessageGenerator = require('./utils/messageGenerator');
 const MessageValidator = require('./utils/messageValidator');
 const ProofGenerator = require('./utils/proofGenerator');
-const RandomUtil = require('./utils/random');
 const Constants = require('./Constants');
 const GameRule = require('./gameRule');
 
@@ -44,12 +44,11 @@ global.logError = logError;
 
 class SCClient {
 
-  constructor(wsweb3, dbhelper, cryptohelper, fromAddress, privateKey) {
+  constructor(wsweb3, dbhelper, cryptohelper, fromAddress) {
 
     //合约相关信息
     this.contractInfo = {
       fromAddress,
-      privateKey,
       paymentContractAddress,
       paymentContractAbi: paymentContractAbi.abi,
       gameContractAddress,
@@ -57,9 +56,8 @@ class SCClient {
     }
 
     this.from = fromAddress;         //本地钱包地址
-    this.privateKey = privateKey;    //本地钱包私钥
     this.dbhelper = dbhelper ;       //数据库操作类
-    this.cryptohelper = cryptohelper;       //加密数据操作类
+    this.cryptohelper = cryptohelper;  //加密数据操作类
 
     this.eventList = {};             //外部监听事件处理列表
 
@@ -73,10 +71,8 @@ class SCClient {
     this.autoRespondDirectTransfer = true;     //自动回复DirectTransfer消息
     this.autoRespondDirectTransferR = true;    //自动回复DirectTransferR消息
 
-    //区块链操作类
-    this.blockchainProxy = new BlockchainProxy(this.web3, this.contractInfo);
-    //P2P消息生成类
-    this.messageGenerator = new MessageGenerator(this.web3, fromAddress, privateKey, gameContractAddress, paymentContractAddress);
+    this.walletUnlocked = false;
+
     //P2P消息验证类
     this.messageValidator = new MessageValidator(this.web3, gameContractAddress, paymentContractAddress);
     //强关proof生成器
@@ -84,11 +80,10 @@ class SCClient {
 
     //外部事件发送器
     this.eventManager = new EventManager(this.eventList);
-    // 启动blockchainEventHandler 
-    new BlockChainEventHandler(this.web3, this.contractInfo, this).start();
 
+    //区块链查询类
+    this.blockchainQuery = new BlockchainQuery(this.web3, this.contractInfo);
   }
-
 
   /**
    * 初始化P2P消息处理期
@@ -99,9 +94,20 @@ class SCClient {
     new MessageHandler(socket, this).start();
   }
 
-  async init() {
-  }
+  unlockWallet(privateKey){
 
+    this.privateKey = privateKey;    //本地钱包私钥
+    this.contractInfo.privateKey = privateKey;
+    this.walletUnlocked = true;
+
+    //区块链操作类
+    this.blockchainProxy = new BlockchainProxy(this.web3, this.contractInfo);
+    //P2P消息生成类
+    this.messageGenerator = new MessageGenerator(this.web3, this.from, privateKey, this.contractInfo.gameContractAddress, this.contractInfo.paymentContractAddress);
+    // 启动blockchainEventHandler 
+    new BlockChainEventHandler(this.web3, this.contractInfo, this).start();
+
+  }
 
   /**
    * 开通道操作，只能由用户端调用，用户主动与服务器开通道
@@ -110,6 +116,7 @@ class SCClient {
    * @returns {String} 开通通道交易hash
    */
   async openChannel(partnerAddress, depositAmount) {
+    if (!this.walletUnlocked) return false;
     //send openchannel request to blockchain
     let settle_window = 6;
     return await this.blockchainProxy.openChannel(this.from, partnerAddress, settle_window, depositAmount);
@@ -123,6 +130,7 @@ class SCClient {
    * @returns {String} 交易hash
    */
   async deposit(partnerAddress, depositAmount) {
+    if (!this.walletUnlocked) return false;
     return await this.blockchainProxy.deposit(this.from, partnerAddress, depositAmount);
   }
 
@@ -137,6 +145,7 @@ class SCClient {
    */
   async startBet(channelIdentifier, partnerAddress, betMask, modulo, betValue, randomSeed = "") {
 
+    if (!this.walletUnlocked) return false;
     //检测通道状态
     let channel = await this.dbhelper.getChannel(channelIdentifier);
     if (!channel || channel.status != Constants.CHANNEL_OPENED) {
@@ -202,7 +211,8 @@ class SCClient {
    */
   async closeChannel(partnerAddress) {
 
-    let channelIdentifier = await this.blockchainProxy.getChannelIdentifier(partnerAddress);
+    if (!this.walletUnlocked) return false;
+    let channelIdentifier = await this.blockchainQuery.getChannelIdentifier(partnerAddress);
     let channel = await this.dbhelper.getChannel(channelIdentifier);
 
     //检测通道状态
@@ -226,7 +236,8 @@ class SCClient {
    */
   async closeChannelCooperative(partnerAddress){
 
-    let channelIdentifier = await this.blockchainProxy.getChannelIdentifier(partnerAddress);
+    if (!this.walletUnlocked) return false;
+    let channelIdentifier = await this.blockchainQuery.getChannelIdentifier(partnerAddress);
     let channel = await this.dbhelper.getChannel(channelIdentifier);
 
     if(!channel || channel.status != Constants.CHANNEL_OPENED){
@@ -251,7 +262,8 @@ class SCClient {
    */
   async settleChannel(partnerAddress){
     //refresh channel status
-    let channelIdentifier = await this.blockchainProxy.getChannelIdentifier(partnerAddress);
+    if (!this.walletUnlocked) return false;
+    let channelIdentifier = await this.blockchainQuery.getChannelIdentifier(partnerAddress);
     let channel = await this.dbhelper.getChannel(channelIdentifier);
 
     if (!channel || (channel.status != Constants.CHANNEL_CLOSED && channel.status != Constants.CHANNEL_UPDATEBALANCEPROOF)) {
@@ -272,6 +284,7 @@ class SCClient {
    * @returns 交易hash 
    */
   async unlockChannel(partnerAddress, lockIdentifier){
+    if (!this.walletUnlocked) return false;
     await this.blockchainProxy.unlock(this.from, partnerAddress, lockIdentifier);
   }
 
@@ -282,6 +295,7 @@ class SCClient {
    * @returns 交易hash
    */
   async initiatorSettle(channelIdentifier, betId){
+    if (!this.walletUnlocked) return false;
     let channel = await this.dbhelper.getChannel(channelIdentifier);
     let bet = await this.dbhelper.getBet(betId);
 
@@ -314,7 +328,7 @@ class SCClient {
    * @returns {Object} 单个通道信息
    */
   async getChannel(partnerAddress) {
-    let channelIdentifier = await this.blockchainProxy.getChannelIdentifier(partnerAddress);
+    let channelIdentifier = await this.blockchainQuery.getChannelIdentifier(partnerAddress);
     let channel = await this.dbhelper.getChannel(channelIdentifier);
     return channel;
   }
@@ -342,6 +356,8 @@ class SCClient {
   async getPayments(condition, offset, limit){
     return await this.dbhelper.getPayments(condition, offset, limit);
   }
+
+
 
 
 
