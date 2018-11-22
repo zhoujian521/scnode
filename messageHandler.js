@@ -366,7 +366,7 @@ class MessageHandler {
 
     if(this.scclient.autoRespondLockedTransferR){
       //generate Rb 
-      let rb = RandomUtil.generateRandomFromSeed2(this.web3, "hello");
+      let rb = this.scclient.generateRandomHex("hello");
       const betResponse = this.scclient.messageGenerator.generateBetResponse(channelIdentifier, round, bet.betMask, bet.modulo, bet.positiveA, bet.negativeB, bet.hashRa, bet.signatureA, rb);
       // update bet info
       await this.scclient.dbhelper.updateBet(bet.betId, { rb, signatureB: betResponse.signatureB, status: Constants.BET_LOCK_TWO });

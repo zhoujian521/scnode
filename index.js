@@ -44,7 +44,7 @@ global.logError = logError;
 
 class SCClient {
 
-  constructor(wsweb3, dbhelper, fromAddress, privateKey) {
+  constructor(wsweb3, dbhelper, cryptohelper, fromAddress, privateKey) {
 
     //合约相关信息
     this.contractInfo = {
@@ -59,6 +59,7 @@ class SCClient {
     this.from = fromAddress;         //本地钱包地址
     this.privateKey = privateKey;    //本地钱包私钥
     this.dbhelper = dbhelper ;       //数据库操作类
+    this.cryptohelper = cryptohelper;       //加密数据操作类
 
     this.eventList = {};             //外部监听事件处理列表
 
@@ -154,7 +155,7 @@ class SCClient {
     logInfo('new Round is ', round);
 
     //generate Random from seed
-    let ra = RandomUtil.generateRandomFromSeed2(this.web3, randomSeed);
+    let ra = await this.cryptohelper.generateRandomHex(randomSeed);
     let hashRa = this.web3.utils.soliditySha3(ra);
     //generate BetRequest Message
     let betRequestMessage = this.messageGenerator.generateBetRequest(channelIdentifier, round, betMask, modulo, this.from, partnerAddress, hashRa);
