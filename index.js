@@ -63,13 +63,14 @@ class SCClient {
 
     this.web3 = wsweb3;              //全局web3
 
-    this.autoRespondBetRequest = true;         //自动回复BetRequest消息
-    this.autoRespondLockedTransfer = true;     //自动回复LockedTransfer消息
-    this.autoRespondLockedTransferR = true;    //自动回复LockedTransferR消息
-    this.autoRespondBetResponse = true;        //自动回复BetResponse消息
-    this.autoRespondPreimage = true;           //自动回复Preimage消息
-    this.autoRespondDirectTransfer = true;     //自动回复DirectTransfer消息
-    this.autoRespondDirectTransferR = true;    //自动回复DirectTransferR消息
+    //钱包未解锁时，不自动回复消息
+    this.autoRespondBetRequest = false;         //自动回复BetRequest消息
+    this.autoRespondLockedTransfer = false;     //自动回复LockedTransfer消息
+    this.autoRespondLockedTransferR = false;    //自动回复LockedTransferR消息
+    this.autoRespondBetResponse = false;        //自动回复BetResponse消息
+    this.autoRespondPreimage = false;           //自动回复Preimage消息
+    this.autoRespondDirectTransfer = false;     //自动回复DirectTransfer消息
+    this.autoRespondDirectTransferR = false;    //自动回复DirectTransferR消息
 
     this.walletUnlocked = false;
 
@@ -99,6 +100,14 @@ class SCClient {
     this.privateKey = privateKey;    //本地钱包私钥
     this.contractInfo.privateKey = privateKey;
     this.walletUnlocked = true;
+
+    this.autoRespondBetRequest = true;         //自动回复BetRequest消息
+    this.autoRespondLockedTransfer = true;     //自动回复LockedTransfer消息
+    this.autoRespondLockedTransferR = true;    //自动回复LockedTransferR消息
+    this.autoRespondBetResponse = true;        //自动回复BetResponse消息
+    this.autoRespondPreimage = true;           //自动回复Preimage消息
+    this.autoRespondDirectTransfer = true;     //自动回复DirectTransfer消息
+    this.autoRespondDirectTransferR = true;    //自动回复DirectTransferR消息
 
     //区块链操作类
     this.blockchainProxy = new BlockchainProxy(this.web3, this.contractInfo);
