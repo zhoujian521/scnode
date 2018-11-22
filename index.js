@@ -3,7 +3,6 @@
  * 1. 提供了相关接口供外部调用
  * 2. eventList来存储所有的事件监听器
  */
-const Web3 = require("web3");
 const BlockChainEventHandler = require("./blockchainEventHandler");
 const MessageHandler = require("./messageHandler");
 const BlockchainProxy = require('./blockchainProxy');
@@ -17,9 +16,9 @@ const Constants = require('./Constants');
 const GameRule = require('./gameRule');
 
 //基础配置信息，通道合约和游戏合约地址 以及相应的ABI文件
-const paymentContractAddress = '0x86364E2a57C4040d94Ab1440E48693c6e7483c30';
+const paymentContractAddress = '0x4B70A4d4d885cb397E2bD5b0A77DA9bD3EEb033e';
 const paymentContractAbi = require('./Payment_ETH.json')
-const gameContractAddress = '0x406a9aCC62d488f7396e24750767aa8E665252C2';
+const gameContractAddress = '0x2ec9B713cCa3f42fd7E263D91B46e86E6fe7ea4B';
 const gameContractAbi = require('./Dice_SC.json')
 
 /**

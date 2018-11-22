@@ -134,7 +134,7 @@ class BlockChainEventHandler {
       logInfo('onChannelDeposit error', error);
       return;
     }
-    let { channel_identifier, participant, total_deposit } = event.returnValues;
+    let { channel_identifier, participant, new_deposit, total_deposit } = event.returnValues;
 
     let channel = await this.dbhelper.getChannel(channel_identifier);
     if (!channel) return;
@@ -304,7 +304,7 @@ class BlockChainEventHandler {
     if (!channel) return;
     if (participant1 != this.from && participant2 != this.from) return;
     let newAttr = {
-      status: Constants.ChannelSettled,
+      status: Constants.CHANNEL_SETTLED,
       localSettleBalance: participant1 == this.from? transferToParticipant1Amount: transferToParticipant2Amount,
       remoteSettleBalance: participant1 == this.from? transferToParticipant2Amount: transferToParticipant1Amount,
       closeLockIdentifier: lockedIdentifier,
@@ -443,10 +443,14 @@ class BlockChainEventHandler {
       logInfo('onCooperativeSettle error', error);
       return;
     }
-    let { channelIdentifier, participant1_balance, participant2_balance } = event.returnValues;
+    let { channelIdentifier, participant1_address, participant2_address, participant1_balance, participant2_balance } = event.returnValues;
     let channel = await this.dbhelper.getChannel(channelIdentifier);
+    if (!channel) return;
 
-    let updateData = { status: Constants.CHANNEL_UNLOCKFINISHED, closeType: Constants.CLOSE_COOPERATIVE, localSettleBalance: participant1_balance, remoteSettleBalance: participant2_balance };
+    let localSettleBalance = participant1_address == channel.partner ? participant2_balance : participant1_balance;
+    let remoteSettleBalance = participant2_address == channel.partner ? participant2_balance : participant1_balance;
+
+    let updateData = { status: Constants.CHANNEL_UNLOCKFINISHED, closeType: Constants.CLOSE_COOPERATIVE, localSettleBalance, remoteSettleBalance };
     logInfo("after cooperativesettle, will update channel");
     await this.dbhelper.updateChannel(channelIdentifier, updateData);
 
