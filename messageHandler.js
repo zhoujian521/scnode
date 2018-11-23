@@ -46,7 +46,8 @@ class MessageHandler {
       .on("DirectTransfer", this.onDirectTransfer.bind(this))
       .on("DirectTransferR", this.onDirectTransferR.bind(this))
       .on("BetSettle", this.onBetSettle.bind(this))
-      .on("CooperativeSettleRequest", this.onCooperativeSettle.bind(this));
+      .on("CooperativeSettleRequest", this.onCooperativeSettle.bind(this))
+      .on("CooperativeSettleResponse", this.onCooperativeSettleResponse.bind(this));
   }
 
   /**
@@ -693,7 +694,7 @@ class MessageHandler {
   async onCooperativeSettle(message){
 
     logInfo('CooperativeSettleRequest Received: ', message);
-    let { paymentContract, channelIdentifier, p1, p1Balance, p2, p2Balance, signature: p1Signature } = message;
+    let { paymentContract, channelIdentifier, p1, p1Balance, p2, p2Balance, p1Signature } = message;
     // check balance
     let channel = await this.scclient.dbhelper.getChannel(channelIdentifier);
     if (!channel || channel.status != Constants.CHANNEL_OPENED) return; 
@@ -717,9 +718,43 @@ class MessageHandler {
     let cooperativeSettleRequest = this.scclient.messageGenerator.genreateCooperativeSettleRequest(channelIdentifier, p1, p1Balance, p2, p2Balance);
     let p2Signature = cooperativeSettleRequest.signature;
 
-    await this.scclient.blockchainProxy.cooperativeSettle(p1, p1Balance, p2, p2Balance, this.web3.utils.hexToBytes(p1Signature), this.web3.utils.hexToBytes(p2Signature));
+    cooperativeSettleRequest.p1Signature = p1Signature;
+    cooperativeSettleRequest.p2Signature = p2Signature;
 
+    this.socket.emit("CooperativeSettleResponse", cooperativeSettleRequest);
+
+    // await this.scclient.blockchainProxy.cooperativeSettle(p1, p1Balance, p2, p2Balance, this.web3.utils.hexToBytes(p1Signature), this.web3.utils.hexToBytes(p2Signature));
   }
+
+  async onCooperativeSettleResponse(message){
+
+    logInfo('CooperativeSettleResponse Received: ', message);
+    let { paymentContract, channelIdentifier, p1, p1Balance, p2, p2Balance, p1Signature, p2Signature } = message;
+    // check balance
+    let channel = await this.scclient.dbhelper.getChannel(channelIdentifier);
+    if (!channel || channel.status != Constants.CHANNEL_OPENED) return; 
+
+    if(p2 != channel.partner
+      || p1 != this.scclient.from
+      ||p2Balance != channel.remoteBalance 
+      || p1Balance != channel.localBalance
+      ){
+        logError('balance is not correct');
+        return;
+      }
+    // check partner signature
+
+    if(!this.scclient.messageValidator.checkCooperativeSettleRequest(message, p1, p2)){
+      logError("invalid signature for cooperativeSettleRequest");
+      return;
+    }
+
+    await this.scclient.blockchainProxy.cooperativeSettle(p1, p1Balance, p2, p2Balance, this.web3.utils.hexToBytes(p1Signature), this.web3.utils.hexToBytes(p2Signature));
+  }
+
+
+
+
 }
 
 module.exports = MessageHandler;

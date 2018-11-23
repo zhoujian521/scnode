@@ -124,14 +124,20 @@ class MessageValidator {
    * @param address 签名用户的地址
    * @returns {Boolean} 签名检查结果
    */
-  checkCooperativeSettleRequest(message, address){
-    let {channelIdentifier, p1, p1Balance, p2, p2Balance, signature} = message;
+  checkCooperativeSettleRequest(message, address, address2){
+    let { channelIdentifier, p1, p1Balance, p2, p2Balance, p1Signature, p2Signature } = message;
 
     let messagehash = this.web3.utils.soliditySha3(this.paymentContractAddress, channelIdentifier, p1, p1Balance, p2, p2Balance);
 
     logInfo("checkCooperativeSettleRequest messagehash is ", messagehash);
 
-    let isValid = Ecsign.checkSignature(messagehash, signature, address);
+    let isValid = Ecsign.checkSignature(messagehash, p1Signature, address);
+
+    if(address2 != null && p2Signature != null){
+      let isValid2 = Ecsign.checkSignature(messagehash, p2Signature, address2);
+      isValid = isValid && isValid2;
+    }
+
     return isValid;
   }
 

@@ -256,7 +256,9 @@ class SCClient {
     let localBalance = channel.localBalance;
     let remoteBalance = channel.remoteBalance;
     
-    let cooperativeSettleRequestMessage = this.messageGenerator.genreateCooperativeSettleRequest(channelIdentifier, this.from, localBalance, partnerAddress,  remoteBalance);
+    let cooperativeSettleRequestMessage = this.messageGenerator.genreateCooperativeSettleRequest(channelIdentifier, this.from, localBalance, partnerAddress, remoteBalance);
+    cooperativeSettleRequestMessage.p1Signature = cooperativeSettleRequestMessage.signature;
+
     this.socket.emit("CooperativeSettleRequest", cooperativeSettleRequestMessage);
 
     return true;
