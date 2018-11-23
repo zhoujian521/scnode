@@ -162,7 +162,7 @@ class BlockChainEventHandler {
 
     await this.dbhelper.updateChannel(channel_identifier, newAttr);
 
-    //TODO emit channel Desposit event
+    this.eventManager.sendChannelDeposit(Object.assign(channel, newAttr));
     
   }
 

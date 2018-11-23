@@ -56,6 +56,11 @@ class eventManager {
     this.eventList.PaymentReceived &&
       this.eventList.PaymentReceived(channel, bet);
   }
+
+  async sendChannelDeposit(channel) {
+    this.eventList.ChannelDeposit &&
+      this.eventList.ChannelDeposit (channel);
+  }
 }
 
 module.exports = eventManager;
