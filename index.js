@@ -14,6 +14,7 @@ const MessageValidator = require('./utils/messageValidator');
 const ProofGenerator = require('./utils/proofGenerator');
 const Constants = require('./Constants');
 const GameRule = require('./gameRule');
+const SyncBlockchain = require("./syncBlockchain");
 
 //基础配置信息，通道合约和游戏合约地址 以及相应的ABI文件
 const paymentContractAddress = '0x4B70A4d4d885cb397E2bD5b0A77DA9bD3EEb033e';
@@ -83,6 +84,9 @@ class SCClient {
 
     //区块链查询类
     this.blockchainQuery = new BlockchainQuery(this.web3, this.contractInfo);
+
+    this.syncBlockchain = new SyncBlockchain(this);
+
   }
 
   /**
@@ -116,6 +120,15 @@ class SCClient {
     new BlockChainEventHandler(this.web3, this.contractInfo, this).start();
 
   }
+
+  async sync(partnerAddress){
+    
+    return await this.syncBlockchain.doSync(partnerAddress);
+
+  }
+
+
+
 
   /**
    * 开通道操作，只能由用户端调用，用户主动与服务器开通道

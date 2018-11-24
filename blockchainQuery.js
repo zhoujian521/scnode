@@ -54,6 +54,20 @@ class BlockchainQuery {
       .call({ from: this.from });
   }
 
+
+
+  /**
+   * 查询通道参与者信息
+   * @param channelIdentifier 通道ID 
+   * @param participant 参与者地址
+   * @returns {Object} ParticipantInfo
+   */
+  async getParticipantInfo(channelIdentifier, participant){
+    return await this.paymentContract.methods
+      .getParticipantInfo(channelIdentifier, participant)
+      .call({ from: this.from });
+  }
+
   /**
    * 根据己方地址，另一方地址获取通道ID
    * @param partnerAddress 另一方地址
