@@ -80,7 +80,6 @@ class BlockChainEventHandler {
     }
     let { participant1, participant2, channelIdentifier, settle_timeout, amount } = event.returnValues;
 
-    logInfo('BlockChainEventHandler constructor', this.from, participant1, participant2)
     if (participant1 != this.from && participant2 != this.from) {
       return;
     }
@@ -114,10 +113,10 @@ class BlockChainEventHandler {
 
       // add channel to db
       await this.dbhelper.addChannel(channel);
+      //emit channel open event
+      this.eventManager.sendChannelOpen(channel);
     }
 
-    //emit channel open event
-    this.eventManager.sendChannelOpen(channel);
 
   }
 
@@ -160,9 +159,10 @@ class BlockChainEventHandler {
       }
     }
 
-    await this.dbhelper.updateChannel(channel_identifier, newAttr);
-
-    this.eventManager.sendChannelDeposit(Object.assign(channel, newAttr));
+    if(Object.keys(newAttr).length > 0){
+      await this.dbhelper.updateChannel(channel_identifier, newAttr);
+      this.eventManager.sendChannelDeposit(Object.assign(channel, newAttr));
+    }
     
   }
 
@@ -445,7 +445,7 @@ class BlockChainEventHandler {
     }
     let { channelIdentifier, participant1_address, participant2_address, participant1_balance, participant2_balance } = event.returnValues;
     let channel = await this.dbhelper.getChannel(channelIdentifier);
-    if (!channel) return;
+    if (!channel || channel.status == Constants.CHANNEL_UNLOCKFINISHED) return;
 
     let localSettleBalance = participant1_address == channel.partner ? participant2_balance : participant1_balance;
     let remoteSettleBalance = participant2_address == channel.partner ? participant2_balance : participant1_balance;
