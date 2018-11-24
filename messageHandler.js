@@ -696,16 +696,18 @@ class MessageHandler {
     logInfo('CooperativeSettleRequest Received: ', message);
     let { paymentContract, channelIdentifier, p1, p1Balance, p2, p2Balance, p1Signature } = message;
 
+    await this.scclient.sync(p1);
+
     // check balance
     let channel = await this.scclient.dbhelper.getChannel(channelIdentifier);
+    logInfo('channel is ', channel);
     if (!channel || channel.status != Constants.CHANNEL_OPENED) return; 
 
-    await this.scclient.sync(channel.partner);
 
     if(p1 != channel.partner
       || p2 != this.scclient.from
-      ||p1Balance != channel.remoteBalance 
-      || p2Balance != channel.localBalance
+//      ||p1Balance != channel.remoteBalance 
+//      || p2Balance != channel.localBalance
       ){
         logError('balance is not correct');
         return;
