@@ -1,5 +1,5 @@
 
-
+const Constants = require('./Constants');
 
 
 class SyncBlockchain{
