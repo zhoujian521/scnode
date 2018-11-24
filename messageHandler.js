@@ -695,9 +695,12 @@ class MessageHandler {
 
     logInfo('CooperativeSettleRequest Received: ', message);
     let { paymentContract, channelIdentifier, p1, p1Balance, p2, p2Balance, p1Signature } = message;
+
     // check balance
     let channel = await this.scclient.dbhelper.getChannel(channelIdentifier);
     if (!channel || channel.status != Constants.CHANNEL_OPENED) return; 
+
+    await this.scclient.sync(channel.partner);
 
     if(p1 != channel.partner
       || p2 != this.scclient.from
