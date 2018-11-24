@@ -98,6 +98,18 @@ class SCClient {
     new MessageHandler(socket, this).start();
   }
 
+  initWeb3(web3){
+    this.web3 = web3;
+
+    this.blockchainQuery = new BlockchainQuery(this.web3, this.contractInfo);
+    if(this.walletUnlocked){
+
+      this.blockchainProxy = new BlockchainProxy(this.web3, this.contractInfo);
+       // 启动blockchainEventHandler 
+      new BlockChainEventHandler(this.web3, this.contractInfo, this).start();
+    }
+  }
+
   unlockWallet(privateKey){
 
     this.privateKey = privateKey;    //本地钱包私钥
