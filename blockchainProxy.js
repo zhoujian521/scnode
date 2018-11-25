@@ -41,6 +41,48 @@ class BlockchainProxy {
     this.chainId = 4;
   }
 
+  setRedis(redis){
+    this.redis = redis;
+  }
+
+  async getNonce(address){
+    if(!this.redis || !address){
+      return 0;
+    }
+
+    const redisGet = (key) => {
+      return new Promise((resolve, reject) => {
+        this.redis.get(key, function (err, reply) {
+          if (err)
+            reject(err);
+          else
+            resolve(reply);
+        });
+      })
+    }
+
+
+    let key = address.toLowerCase() + '_nonce';
+    let value = await redisGet(key);
+
+    console.log('redis value is ', value);
+    if(!value){
+      return 0;
+    }
+    return parseInt(value);
+
+  }
+
+  async setNonce(address, nonce){
+    if(!this.redis || !address){
+      return;
+    }
+
+    let key = address.toLowerCase() + '_nonce';
+    return await this.redis.set(key, nonce);
+  }
+
+
   async testMonitorEvent(){
 
     this.paymentContract.getPastEvents('ChannelOpened',
@@ -358,6 +400,12 @@ class BlockchainProxy {
     let from = this.from;
 
     let nonce = await this.web3.eth.getTransactionCount(from);
+    // fetch nonce
+    let nonceFromRedis = await this.getNonce(from);
+    logInfo("nonce", nonce, "nonceFromRedis", nonceFromRedis);
+    if (nonce < nonceFromRedis) {
+      nonce = nonceFromRedis;
+    }
 
     var rawTransaction = {
       from: from,
@@ -367,7 +415,6 @@ class BlockchainProxy {
       to: to,
       value: web3.utils.toHex(value),
       data: data,
-      chainId: chainId
     };
 
     // console.log('rawTransaction', rawTransaction);
@@ -387,9 +434,12 @@ class BlockchainProxy {
     return new Promise((resolve, reject) => {
       web3.eth.sendSignedTransaction(
         "0x" + serializedTx.toString("hex"),
-        function(err, hash) {
+        (err, hash) => {
           if (!err) {
-            logInfo(hash);
+            logInfo('TXHash: ' + hash);
+            // update nonce
+            this.setNonce(from, nonce + 1);
+
             resolve(hash);
           } else {
             reject(err);

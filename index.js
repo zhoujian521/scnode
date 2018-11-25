@@ -110,6 +110,12 @@ class SCClient {
     }
   }
 
+
+  initRedis(redis) {
+    // this.redis = redis;
+    this.blockchainProxy.setRedis(redis); 
+  }
+
   unlockWallet(privateKey){
 
     this.privateKey = privateKey;    //本地钱包私钥
