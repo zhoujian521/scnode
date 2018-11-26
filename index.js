@@ -284,8 +284,8 @@ class SCClient {
       return false;
     }
 
-    let localBalance = channel.localBalance;
-    let remoteBalance = channel.remoteBalance;
+    let localBalance = this.web3.utils.toBN(channel.localBalance).add(this.web3.utils.toBN(channel.localLockedAmount)).toString(10);
+    let remoteBalance = this.web3.utils.toBN(channel.remoteBalance).add(this.web3.utils.toBN(channel.remoteLockedAmount)).toString(10);
     
     let cooperativeSettleRequestMessage = this.messageGenerator.genreateCooperativeSettleRequest(channelIdentifier, this.from, localBalance, partnerAddress, remoteBalance);
     cooperativeSettleRequestMessage.p1Signature = cooperativeSettleRequestMessage.signature;
