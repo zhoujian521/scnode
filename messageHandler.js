@@ -741,8 +741,8 @@ class MessageHandler {
 
     if(p2 != channel.partner
       || p1 != this.scclient.from
-      ||p2Balance != channel.remoteBalance 
-      || p1Balance != channel.localBalance
+      // ||p2Balance != channel.remoteBalance 
+      // || p1Balance != channel.localBalance
       ){
         logError('balance is not correct');
         return;
