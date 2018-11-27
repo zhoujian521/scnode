@@ -422,7 +422,7 @@ class MessageHandler {
     let isWinner = GameRule.winOrLose(this.web3, betMask, modulo, bet.ra, rb, true);
 
     // update Bet in database
-    await this.scclient.dbhelper.updateBet(bet.betId, { rb, signatureB, winner: isWinner, status: Constants.BET_START });
+    await this.scclient.dbhelper.updateBet(bet.betId, { rb, signatureB, winner: isWinner ? 1 : 0, status: Constants.BET_START });
     logInfo(this.eventManager.sendBetPlaced);
     this.eventManager.sendBetPlaced(channel, bet);
 
@@ -470,7 +470,7 @@ class MessageHandler {
     let isWinner = GameRule.winOrLose(this.web3, bet.betMask, bet.modulo, ra, bet.rb, false);
     await this.scclient.dbhelper.updateBet(bet.betId, {
       ra,
-      winner: isWinner,
+      winner: isWinner ? 1 : 0,
       status: Constants.BET_PREIMAGE
     });
 

@@ -194,7 +194,7 @@ class BlockChainEventHandler {
     let closedBySelf = closing == this.from;
     // update channel status
     let status = Constants.CHANNEL_CLOSED;
-    let channelData = { closeType: Constants.CLOSE_FORCE, status, closedBySelf };
+    let channelData = { closeType: Constants.CLOSE_FORCE, status, closedBySelf: closedBySelf ? 1 : 0 };
     if (closedBySelf) {
       channelData.localCloseBalanceHash = balanceHash;
     } else {
@@ -274,7 +274,7 @@ class BlockChainEventHandler {
     
     let updateData = { status: Constants.CHANNEL_UPDATEBALANCEPROOF };
     let closedBySelf = channel.closedBySelf;
-    if(closedBySelf){
+    if (closedBySelf == 1) {
       updateData.remoteCloseBalanceHash = balanceHash;
     }else{
       updateData.localCloseBalanceHash= balanceHash;
