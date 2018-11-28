@@ -240,6 +240,10 @@ class SCClient {
 
     // then send BetRequest to partner
     await this.socket.emit('BetRequest', betRequestMessage);
+
+    // vincent expose bet request
+    this.eventManager.sendBetRequest(channel, betRequestMessage);
+
     return true;
   }
 

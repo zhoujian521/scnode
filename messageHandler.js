@@ -297,6 +297,8 @@ class MessageHandler {
       return;
     } 
 
+    // vincent expose locked transfer
+    this.eventManager.sendLockedTransfer(channel, message);
 
     // save received transfer to db
     let oppositeTransfer = { channelId: channelIdentifier, balanceHash, transferred_amount, locked_amount, round, nonce, signature, owned: 1 };
@@ -311,6 +313,9 @@ class MessageHandler {
       //send LockedR to opposite
       await this.scclient.dbhelper.updateBet(bet.betId, { status: Constants.BET_LOCK_TWO });
       this.socket.emit('LockedTransferR', lockedTransfer);
+
+      // vincent expose locked transfer r
+      this.eventManager.sendLockedTransferR(channel, message);
     }
 
   }
@@ -421,6 +426,9 @@ class MessageHandler {
     // check Win or Lose
     let isWinner = GameRule.winOrLose(this.web3, betMask, modulo, bet.ra, rb, true);
 
+    // vincent expose bet response
+    this.eventManager.sendBetResponse(channel, message);
+
     // update Bet in database
     await this.scclient.dbhelper.updateBet(bet.betId, { rb, signatureB, winner: isWinner ? 1 : 0, status: Constants.BET_START });
     logInfo(this.eventManager.sendBetPlaced);
@@ -432,6 +440,8 @@ class MessageHandler {
       await this.scclient.dbhelper.updateBet(bet.betId, { status: Constants.BET_PREIMAGE });
       await this.socket.emit('Preimage', preimageMessage);
 
+      // vincent expose preimage
+      this.eventManager.sendPreimage(channel, message);
     }
 
   }
@@ -545,6 +555,9 @@ class MessageHandler {
       return;
     } 
 
+    // vincent expose direct transfer
+    this.eventManager.sendDirectTransfer(channel, message);
+
     // save received transfer to db
     let oppositeTransfer = { channelId: channelIdentifier, balanceHash, transferred_amount, locked_amount, round, nonce, signature, owned: 1 }
     await this.scclient.dbhelper.addTransfer(oppositeTransfer);
@@ -587,6 +600,9 @@ class MessageHandler {
       });
 
       this.socket.emit("DirectTransferR", directTransfer);
+
+      // vincent expose direct transfer r
+      this.eventManager.sendDirectTransferR(channel, message);
     }
 
   }
