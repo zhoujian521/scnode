@@ -64,6 +64,10 @@ class MessageHandler {
 
     //check BetRequest
     let { gameContractAddress, channelIdentifier, round, betMask, modulo, value, positiveA, hashRa, signatureA } = message;
+
+    //sync channel first
+    await this.scclient.sync(positiveA);
+
     let channel = await this.scclient.dbhelper.getChannel(channelIdentifier);
     if (!channel || channel.status != Constants.CHANNEL_OPENED) return;
 
@@ -183,6 +187,8 @@ class MessageHandler {
    * @returns {Object} 是否合法，已经新的转出金额 和 新的锁定金额
    */
   async checkBalanceHash(channelIdentifier, balanceHash, deltaTransferAmount, deltaLockedAmount, round, lastNonce) {    
+
+    logInfo("checkBalanceHash params ", channelIdentifier, balanceHash, deltaTransferAmount, deltaLockedAmount, round, lastNonce);
     let currentTransfer = await this.scclient.dbhelper.getLatestTransfer({ channelId: channelIdentifier, nonce: lastNonce, owned: 1 });
 
     let current_transferred_amount = currentTransfer ? currentTransfer.transferred_amount : 0;

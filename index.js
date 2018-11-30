@@ -26,7 +26,7 @@ const gameContractAbi = require('./Dice_SC.json')
  * 基础信息日志
  * @param  {...any} params 
  */
-function logInfo(params){
+function logInfo(...params){
   console.log(params);
 }
 
@@ -34,7 +34,7 @@ function logInfo(params){
  * 基础错误日志
  * @param  {...any} params 
  */
-function logError(params){
+function logError(...params){
   console.log('---------------------------', params);
 }
 //设置日志函数为全局函数
