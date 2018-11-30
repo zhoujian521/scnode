@@ -66,7 +66,7 @@ class MessageHandler {
     let { gameContractAddress, channelIdentifier, round, betMask, modulo, value, positiveA, hashRa, signatureA } = message;
 
     //sync channel first
-    await this.scclient.sync(positiveA);
+    // await this.scclient.sync(positiveA);
 
     let channel = await this.scclient.dbhelper.getChannel(channelIdentifier);
     if (!channel || channel.status != Constants.CHANNEL_OPENED) return;
