@@ -44,8 +44,7 @@ global.logError = logError;
 
 class SCClient {
 
-  constructor(wsweb3, dbhelper, cryptohelper, fromAddress) {
-
+  constructor(wsweb3, dbhelper, cryptohelper, fromAddress, etherContractInfo) {
     //合约相关信息
     this.contractInfo = {
       fromAddress,
@@ -53,6 +52,16 @@ class SCClient {
       paymentContractAbi: paymentContractAbi.abi,
       gameContractAddress,
       gameContractAbi: gameContractAbi.abi
+    }
+
+    if(etherContractInfo != null){
+      this.contractInfo = {
+        fromAddress,
+        paymentContractAddress: etherContractInfo.paymentContractAddress,
+        paymentContractAbi: etherContractInfo.paymentContractAbi,
+        gameContractAddress: etherContractInfo.gameContractAddress,
+        gameContractAbi: etherContractInfo.gameContractAbi 
+      }
     }
 
     this.from = fromAddress;         //本地钱包地址
@@ -75,7 +84,7 @@ class SCClient {
     this.walletUnlocked = false;
 
     //P2P消息验证类
-    this.messageValidator = new MessageValidator(this.web3, gameContractAddress, paymentContractAddress);
+    this.messageValidator = new MessageValidator(this.web3, this.contractInfo.gameContractAddress, this.contractInfo.paymentContractAddress);
     //强关proof生成器
     this.proofGenerator= new ProofGenerator(this);
 
