@@ -1,42 +1,57 @@
-### 接口文档
+## Interface Documentation
 
-参考[State channel client api document](https://gitlab.f3m.club/dice/dice2win_blockchain_sc/wikis/State-Channel-Client-API-Document) 进行使用
+Reference[State channel client api document](https://gitlab.f3m.club/dice/dice2win_blockchain_sc/wikis/State-Channel-Client-API-Document) to use
 
-### State Channel Node 代码结构
+### :evergreen_tree:  State Channel Node code structure
 
-1. index.js是SCClient的类定义
+1. index.js
+* Class definition of SCClient
 
-2. messageHandler.js 是处理P2P消息的处理类
+2. messageHandler.js 
+* P2P message processing class
 
-3. blockEventHandler.js 是监听区块链上合约事件，并进行相应操作的处理类
+3. blockEventHandler.js
+* The processing class that listens for contract events on the blockchain and performs the corresponding actions
 
-4. blockChainQuery.js 是对区块链上数据和合约进行查询的查询类，不需要私钥
+4. blockChainQuery.js 
+* A query class that queries data and contracts on a blockchain does not require a private key
 
-5. blockChainProxy.js 是向区块链提交交易，调用合约的操作类，需要私钥
+5. blockChainProxy.js 
+* The private key is required to submit the transaction to the blockchain and invoke the operation class of the contract
 
-6. Constants.js 常量类型定义，主要包括通道状态, 赌局状态等常量
+6. Constants.js 
+* Constant type definition, mainly including channel state, gambling state and other constants
 
-7. gameRule.js 游戏规则类，主要包含赔率计算，输赢判定等逻辑，需要与区块链上游戏合约逻辑保持一致
+7. gameRule.js 
+* Rules of the game, mainly including the logic of odds calculation, winning or losing judgment, etc., need to be consistent with the logic of the game contract on the blockchain
 
-8. Dice_SC.json是游戏合约用truffle编译完成之后的数据文件
+8. Dice_SC.json
+* Is the data file that the game contract compiles with truffle
 
-9.  Payment_ETH.json是通道合约用truffle编译完成之后的数据文件
+9.  Payment_ETH.json
+* The channel contract compiles the completed data files with truffle
 
-10. utils文件，相关工具类
-    1.  ecsign.js 用私钥对消息进行签名的工具类
+10. utils  Related tool class file
+    1.  ecsign.js 
+        * Utility class that signs messages with a private key
 
-    2.  messageGenerator.js P2P消息生成器, 生成offchain协议所需的各种消息，并对消息进行签名
+    2. messageGenerator.js P2P
+        * A message generator that generates the various messages required by the offchain protocol and signs the messages
 
-    3.  messageValidator.js 接收到对方的P2P消息后，验证对方的消息签名是否正确
+    3.  messageValidator.js 
+        * After receiving the P2P message from the other party, verify whether the message signature of the other party is correct
 
-    4.  proofGenerator.js 生成强关通道时，需要向合约提交的各类数据
+    4.  proofGenerator.js 
+        * The types of data that need to be submitted to the contract when generating a strong channel
 
-### State Channel 消息协议
+### :post_office: State Channel Message protocol
 
-参考[State channel message flow picture](https://gitlab.f3m.club/dice/dice2win_blockchain_sc/wikis/State-Channel-message-flow-picture)来实现的消息收发协议，并做了一些修改
+Reference [State channel message flow picture](https://gitlab.f3m.club/dice/dice2win_blockchain_sc/wikis/State-Channel-message-flow-picture) to implement the messaging protocol, and made some changes
 
 
-#### Bet消息收发顺序    
+#### The order in which Bet messages are sent and received   
+
+```
   1. A ----------BetRequest------------> B
   2. A <---------LockedTransfer--------- B
   3. A ----------LockedTransferR-------> B
@@ -45,38 +60,54 @@
   6. A <---------DirectTransfer--------- B
   7. A ----------DirectTransferR-------> B
   8. A <---------BetSettle-------------- B
+```
  
-  
-#### CooperativeSettle消息收发顺序
+#### CooperativeSettle message send and receive order
+
   1. A ----CooperativeSettleRequest----> B
-  2. B签名, 并将最终消息提交到区块链
+  
+  2. B signs and submits the final message to the blockchain
 
 
-### 强关通道时的处理逻辑
+## :globe_with_meridians: The processing logic when the channel is strongly closed
 
 #### 玩家强关
 
-1. 玩家调用closeChannel关闭通道
-2. 从区块链监听到ChannelClose后，
-   - 如果此时玩家已经收到了BetResponse消息并且赌局还未完成，玩家向游戏合约提交initiatorSettle请求，请求游戏合约仲裁
-   - 庄家调用通道合约的nonclosingUpdateBalanceProof，提交证据
-3. 超过settleTimeout时间后 **（代码中设定为120秒，此处实际应用需修改）**, 玩家和庄家会调用通道合约的settle方法，请求通道结算（此处理论上只会有一方的调用成功)
-   - 可优化，实现一种能够自动调用settle的功能
-4. 从区块链监听到ChannelSettled事件后，玩家和庄家调用通道的unlock方法，解锁通道锁定余额
+1. The player calls the closeChannel to close the channel
+
+2. After listening to ChannelClose from the blockchain,
+
+   - If at this time the player has received the BetResponse message and the bet has not been completed, the player should submit the initiatorSettle request to the game contract and request the arbitration of the game contract
+
+   - Banker call nonclosingUpdateBalanceProof channel contract, submit evidence
+
+3. After the settleTimeout time is exceeded ***（The code is set to 120 seconds, and the actual application here needs to be modified)***, The player and the dealer call the settle method in the channel contract to settle the channel (only one party's call is theoretically successful here)
+
+   - Optimize to implement a function that automatically calls settle
+
+4. When the blockchain is set to the channelplyevent, the player and the dealer call the channel's unlock method to unlock the channel and lock the balance
    - 直接调用有可能调用不成功，需要优化
-5. 从区块链监听到ChannelLockedSent或者ChannelLockedReturn事件，
-
-
+   
+5. Direct calls may not succeed and need to be optimized
 
 #### 庄家强关
 
-1. 庄家调用closeChannel关闭通道
-2. 从区块链监听到ChannelClose后，
-   - 如果此时庄家已经发出了BetResponse并且赌局还未完成, 庄家想游戏合约提交AcceptorSettle请求，请求游戏合约仲裁
-   - 玩家调用通道合约的nonclosingUpdateBalanceProof, 提交证据
-3. 玩家从区块链监听到AcceptorSettled消息后，调用initiatorReveal请求，向游戏合约提交证据
-4. 超过settleTimeout时间后 **（代码中设定为120秒，此处实际应用需修改）**, 玩家和庄家会调用通道合约的settle方法，请求通道结算（此处理论上只会有一方的调用成功) 
-   - 可优化，实现一种能够自动调用settle的功能
-5. 从区块链监听到ChannelSettled事件后，玩家和庄家调用通道的unlock方法，解锁通道锁定余额
-   - 直接调用有可能调用不成功，需要优化
-6. 从区块链监听到ChannelLockedSent或者ChannelLockedReturn事件，
+1. The declarer calls the closeChannel to close the channel
+
+2. After listening to ChannelClose from the blockchain,
+
+   - If the dealer has sent BetResponse and the bet is not completed, the dealer would like to submit the AcceptorSettle request to the game contract and request the arbitration of the game contract
+
+   - Players call nonclosingUpdateBalanceProof channel contract, submit evidence
+
+3. When the player listens to the acceptorplymessage from the blockchain, the initiatorReveal request is called to submit evidence to the game contract
+
+4. After the settleTimeout time is exceeded ***（The code is set to 120 seconds. The actual application here needs to be modified）***, The player and the dealer call the settle method in the channel contract to settle the channel（Theoretically, only one of these calls will succeed) 
+
+   - Optimize to implement a function that automatically calls settle
+
+5. When the blockchain is set to the channelplyevent, the player and the dealer call the channel's unlock method to unlock the channel and lock the balance
+
+   - Direct calls may not succeed and need to be optimized
+
+6. Listen on the blockchain to ChannelLockedSent or ChannelLockedReturn event.
