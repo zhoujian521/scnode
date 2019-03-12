@@ -2,100 +2,96 @@
 
 version: 0.1.0
 
-#### Introduction
+### Introduction
 
-State channel Client 是一个通用的javascript library, 可以在nodejs端或者react-native端进行调用。一旦成功初始化后，可以通过client对象操作状态通道进行随机数博彩游戏。client的具体接口和返回结果可以参考本文档下方内容。
+The State channel Client is a universal javascript library that can be invoked on the nodejs side or react-native side. Once successfully initialized, the client object can operate through the state channel for random number gambling game. The specific interface and return result of client can refer to the content below this document.
 
-
-#### Objects:
+### Objects:
 
 1. **channel object**
 ```
   {
-    channelId: '',       //通道标识
-    settleTimeout,       //通道强关过期时间
-    partner: '',          //对方地址
-    totalDeposit: 100,            //己方充值金额
-    localBalance: 40,            //己方余额
-    partnerTotalDeposit: 45,           //对方充值总金额
-    remoteBalance: 45,           //对方余额
-    localLockedAmount: 5,         //己方锁定金额
-    remoteLockedAmount: 10,       //对方锁定金额
-    localNonce: 1                //本地nonce
-    remoteNonce: 1               //远程nonce
-    state: 1,              //通道状态  1 初始化 2 开通 3 强制关闭中 4 已更新证据 5 结算 6 解锁完成
-    currentRound: 6,          //当前轮数
-    closeType:  1            //关闭类型  1强关 2协商关
-    closedBySelf: 1            //是否为强关发起放
-    localCloseBalanceHash: ''      //本地提交余额证据
-    remoteCloseBalanceHash: ''     //远程提交余额证据
-    localSettleAmount: ''           //关通道时 本地结算金额
-    remoteSettleAmount: ''         //关通道时 本地结算金额
-    localLockedSentAmount: ''      //本地锁定解锁金额
-    remoteLockedSentAmount: ''     //远程锁定解锁金额
-    localLockedReturnAmount: ''    //本地锁定退回金额
-    remoteLockedReturnAmount: ''   //远程锁定退回金额
-    closeLockIdentifier: ''        //强关锁定ID
-    createdAt: ''                  //创建时间
-    updatedAt: ''                  //更新时间
-
-
+    channelId: '',              // Channel id
+    settleTimeout,              // Channel shutdown expiration time
+    partner: '',                // other address
+    totalDeposit: 100,          // self deposit amount
+    localBalance: 40,           // self balance
+    partnerTotalDeposit: 45,    // other deposit total amount
+    remoteBalance: 45,          // other balance
+    localLockedAmount: 5,       // self locked amount
+    remoteLockedAmount: 10,     // other locked amount
+    localNonce: 1               // local nonce
+    remoteNonce: 1              // remote nonce
+    state: 1,                   // Channel state 1 initialization 2 opening 3 compulsory closing 4 updated evidence 5 settlement 6 unlocking completed
+    currentRound: 6,            // The current round of number
+    closeType:  1               // Close type 1 strong level 2 negotiation level
+    closedBySelf: 1             // Whether to be strong close to initiate to put
+    localCloseBalanceHash: ''   // Submit balance evidence locally
+    remoteCloseBalanceHash: ''  // Remote submission of balance evidence
+    localSettleAmount: ''       // Local settlement amount when channel is closed
+    remoteSettleAmount: ''      // Local settlement amount when channel is closed
+    localLockedSentAmount: ''   // Lock the unlock amount locally
+    remoteLockedSentAmount: ''  // Remote lock unlock amount
+    localLockedReturnAmount: '' // Lock the refund amount locally
+    remoteLockedReturnAmount: '' // Remotely lock the refund amount
+    closeLockIdentifier: ''     // Force lock ID
+    createdAt: ''               // Creation time
+    updatedAt: ''               // Update time
   }
-
 ```
 
 2. **bet object**
 ```
 {
-  betId: 1  //赌局ID
-  betMask: "1"  //下注内容
-  channelId: "0xf06be3caa544e2e43f460e3900bca841258bc07e18a95a850d8362c5f289694a" //通道ID
-  createdAt: "2018-11-15 05:25:15.266 +00:00"  //创建时间
-  gameContractAddress: "0xE44C8bA910A179A801267442224F9B7f3065E0ec"  //游戏合约地址
-  hashRa: "0x16d709d355a5ff1d4cb4d767024dda5095016eb9ca9a62990fe30c21a47c0f8d"  //玩家随机数Hash
-  modulo: 2   //游戏类型 2硬币 6骰子 36两个骰子 100 Ethroll
-  negativeB: "0x633177eeE5dB5a2c504e0AE6044d20a9287909f9"   //庄家地址
-  positiveA: "0x56d77fcb5e4Fd52193805EbaDeF7a9D75325bdC0"   //玩家地址
-  ra:  "4deaa6a5a382fbb1c74d1bfba6b487fc290974f0893e50179814923320e0b3132ef05b055381cedf576e9269281ef8d1b9e4b81b60066343c7484dca363da22a"               //玩家随机数
-  rb: "397a6eba4f6c27a13a587a90ff60be2b4e336ffdc21ceaa247cbd996fba7a630931d5209e3d739023f68840539638703cf03e802992b493d641353b1570171e4"              //庄家随机数
-  round: 1                        //轮数
+  betId: 1          // Bet ID
+  betMask: "1"      // Bet Mask
+  channelId: "0xf06be3caa544e2e43f460e3900bca841258bc07e18a95a850d8362c5f289694a"  // Channel ID
+  createdAt: "2018-11-15 05:25:15.266 +00:00"                // Creation time
+  gameContractAddress: "0xE44C8bA910A179A801267442224F9B7f3065E0ec"                // Game contract address
+  hashRa: "0x16d709d355a5ff1d4cb4d767024dda5095016eb9ca9a62990fe30c21a47c0f8d"     // Player random number Hash
+  modulo: 2         // Game type 2 coin 6 dice 36 2 dice 100 Ethroll player random number Hash
+  negativeB: "0x633177eeE5dB5a2c504e0AE6044d20a9287909f9"   // Banker address
+  positiveA: "0x56d77fcb5e4Fd52193805EbaDeF7a9D75325bdC0"   // Players address
+  ra:  "4deaa6a5a382fbb1c74d1bfba6b487fc290974f0893e50179814923320e0b3132ef05b055381cedf576e9269281ef8d1b9e4b81b60066343c7484dca363da22a"                // Player random number
+  rb: "397a6eba4f6c27a13a587a90ff60be2b4e336ffdc21ceaa247cbd996fba7a630931d5209e3d739023f68840539638703cf03e802992b493d641353b1570171e4"                 // Random Numbers
+  round: 1              // Number of rounds
   signatureA:  
- "0x1dc6752fd4830331073cfc9763e4618ea4902871c1b6ccecc053cc27ab2d7a212615c1f1b72454cf05a7effde3273b25cf89d8996de72a8b2cbbcd01084137511b"         //玩家签名
-  signatureB: "0x8309693e461efc38afd8b560664290cd687855ba5155876ff79e2db863599de77496fab91868dae47de4b303216a1dcef24ff15b15193354416bb0e2aefa9a501c"         //庄家签名
-  status: 8       //状态  1初始化 2发送lock 3回复lock 4开始 5出示随机数 6发送transfer 7回复transfer 8完成
-  updatedAt: "2018-11-15 05:25:15.427 +00:00"
-  value: "100000000000000"   //下注金额
-  winAmount: "96000000000000"  //赢取金额
-  winner: "1"              //自己是否是赢家
+ "0x1dc6752fd4830331073cfc9763e4618ea4902871c1b6ccecc053cc27ab2d7a212615c1f1b72454cf05a7effde3273b25cf89d8996de72a8b2cbbcd01084137511b"                  // Player signed
+  signatureB: "0x8309693e461efc38afd8b560664290cd687855ba5155876ff79e2db863599de77496fab91868dae47de4b303216a1dcef24ff15b15193354416bb0e2aefa9a501c"     // Banker signed
+  status: 8                           //state 1 initialization 2 send lock 3 reply lock 4 start 5 show random number 6 send transfer 7 reply transfer 8 complete
+  updatedAt: "2018-11-15 05:25:15.427 +00:00" //更新时间
+  value: "100000000000000"           // Bet amount
+  winAmount: "96000000000000"        // Win amount
+  winner: "1"                        // Whether winner or not
 ```
 
 3. **payment object**
 ```
 {
-  paymentId: ''       //转账ID
-  betId: '',          //游戏ID
-  fromAddr: '',       //转出地址
-  toAddr:'',          //转入地址
-  value: '',          //金额
-  createdAt: '',      //创建时间
-  updatedAt: ''       //更新时间
+  paymentId: ''       // transfer ID
+  betId: '',          // game ID
+  fromAddr: '',       // Turns out the address
+  toAddr:'',          // To address
+  value: '',          // pay amount
+  createdAt: '',      // Creation time
+  updatedAt: ''       // Update time
 }
 ```
 
 4. **SCClient**
+
 ```
 ```
 
+### Methods:
 
-#### Methods:
-
-1. **new SCClient** 创建一个新的SCClient
+1. **new SCClient** new SCClient
 
    - params:
-      - web3: web3实例
-      - dbhelper: 数据库操作辅助函数
-      - cryptohelper: 生成随机数有关的辅助函数
-      - address: 本地地址
+      - web3: Web3 instance
+      - dbhelper: Database operation helper functions
+      - cryptohelper: Generate random number related auxiliary functions
+      - address: Local address
    - returns:
       - scclient
    - example:
@@ -115,10 +111,10 @@ State channel Client 是一个通用的javascript library, 可以在nodejs端�
 
   ```
 
-2. **openChannel** 开通一个通道，并存入相应的钱
+2. **openChannel** Open a channel and deposit the money
     - params:
-      - partnerAddress: 对方以太坊地址
-      - depositAmount: 存款金额
+      - partnerAddress: The other party ether lane address
+      - depositAmount: Amount of deposit
     - returns:
       - err
       - channel
@@ -128,27 +124,27 @@ State channel Client 是一个通用的javascript library, 可以在nodejs端�
           .then(console.log);
 ```
 
-3. **deposit** 向通道中存入指定金额的钱
+3. **deposit** To deposit a specified amount of money into a channel
     - params:
-      - partnerAddress: 对方以太坊地址
-      - depositAmount: 存款金额
+      - partnerAddress: The other party ether lane address
+      - depositAmount: Amount of deposit
     - returns:
       - err
       - channel
     - example:
 ```
   scclient.deposit(parterAddress, depositAmount)
-          .then(console.log);
+      .then(console.log);
 
 ```
 
-4. **startBet** 开始玩一局
+4. **startBet** Start a game
     - params:
-      - channelIdentifer: 通道ID
-      - betMask: 下注数据
-      - modulo: 游戏种类
-      - betValue: 下注金额
-      - randomSeed: 本方随机数种子
+      - channelIdentifer: Channel ID
+      - betMask: Bet data
+      - modulo: Types of games
+      - betValue: Bet amount
+      - randomSeed: Local random number seeds
     - returns:
       - err
       - channel
@@ -158,9 +154,9 @@ State channel Client 是一个通用的javascript library, 可以在nodejs端�
         .then(console.log);
 ```
 
-5. **closeChannel** 强制关闭通道
+5. **closeChannel** Forced closing of channel
     - params:
-      - partnerAddress: 对方以太坊地址
+      - partnerAddress: The other party ether lane address
     - returns:
       - err
       - result
@@ -171,7 +167,7 @@ State channel Client 是一个通用的javascript library, 可以在nodejs端�
 
 6. **closeChannelCooperative**
     - params:
-      - partnerAddress: 对方以太坊地址
+      - partnerAddress: The other party ether lane address
     - returns:
       - err
       - result
@@ -180,12 +176,11 @@ State channel Client 是一个通用的javascript library, 可以在nodejs端�
   scclient.closeChannelCooperative(partnerAddress).then(console.log);
 ```
 
-
-7. **getAllChannels** 获取所有通道
+7. **getAllChannels** Get all channels
     - params:
-      - condition: 查询条件
-      - offset: 起始查询点
-      - limit: 返回查询条数
+      - condition: Query conditions
+      - offset: Start query point
+      - limit: Returns the number of queries
     - returns:
       - channels
     - example:
@@ -194,9 +189,9 @@ State channel Client 是一个通用的javascript library, 可以在nodejs端�
   scclient.getAllChannels({partner: '0x11111111111'}, 0, 10).then(console.log);
 ```
 
-7. **getChannel** 获取单个通道信息
+7. **getChannel** Gets the individual channel information
     - params:
-      - partnerAddress: 对方以太坊地址
+      - partnerAddress: The other party ether lane address
     - returns:
       - channel
     - example:
@@ -204,9 +199,9 @@ State channel Client 是一个通用的javascript library, 可以在nodejs端�
   scclient.getChannel(partnerAddress);
 ```
 
-8. **getAllBets** 获取所有下注信息和结果
+8. **getAllBets** Get all bet information and results
     - params:
-      - condition: 查询条件
+      - condition: Query conditions
       - offset
       - limit
     - returns:
@@ -216,18 +211,19 @@ State channel Client 是一个通用的javascript library, 可以在nodejs端�
   scclient.getAllBets({channelId: '0x13123123'}, offset, limit);
 ```
 
-9. **getBetById** 根据ID获取下注
+9. **getBetById** Get the bet by ID
     - params:
-      - betId: 下注ID
+      - betId: bet ID
     - returns:
       - bet
     - example:
 ```
   scclient.getBetById(betId);
 ```
-10. **getPayments** 获取所有转账记录
+
+10. **getPayments** Get all transfer records
  - params:
-      - condition: 查询条件
+      - condition: Query conditions
       - offset
       - limit
     - returns:
@@ -237,13 +233,13 @@ State channel Client 是一个通用的javascript library, 可以在nodejs端�
   scclient.getPayments({betId: 1}, offset, limit);
 ```
 
-#### Events 
+### Events 
 
-通道上的事件可以通过监听的方式获取，之后可以自定相关的业务逻辑
+Events on the channel can be picked up by listening, and then the relevant business logic can be customized
 
 1. **ChannelOpen**
 
-通道开启
+Open channel
 
 ```
   scclient.on('ChannelOpen', function(channel){
@@ -252,8 +248,6 @@ State channel Client 是一个通用的javascript library, 可以在nodejs端�
 ```
 
 2. **BetPlaced**
-
-
 
 ```
   scclient.on('BetPlaced', function(channel, bet){

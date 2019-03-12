@@ -71,7 +71,7 @@ Reference [State channel message flow picture](https://gitlab.f3m.club/dice/dice
 
 ## :globe_with_meridians: The processing logic when the channel is strongly closed
 
-#### 玩家强关
+#### Players strong close
 
 1. The player calls the closeChannel to close the channel
 
@@ -86,11 +86,12 @@ Reference [State channel message flow picture](https://gitlab.f3m.club/dice/dice
    - Optimize to implement a function that automatically calls settle
 
 4. When the blockchain is set to the channelplyevent, the player and the dealer call the channel's unlock method to unlock the channel and lock the balance
-   - 直接调用有可能调用不成功，需要优化
+
+   - Direct calls may not succeed and need to be optimized
    
 5. Direct calls may not succeed and need to be optimized
 
-#### 庄家强关
+#### Banker strong close
 
 1. The declarer calls the closeChannel to close the channel
 
