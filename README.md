@@ -1,6 +1,6 @@
 ## Interface Documentation
 
-Reference[State channel client api document](https://gitlab.f3m.club/dice/dice2win_blockchain_sc/wikis/State-Channel-Client-API-Document) to use
+Reference[State channel client api document](https://github.com/shuaijianjian/scnode/blob/master/Api.md) to use
 
 ### :evergreen_tree:  State Channel Node code structure
 

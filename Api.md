@@ -6,7 +6,7 @@ version: 0.1.0
 
 The State channel Client is a universal javascript library that can be invoked on the nodejs side or react-native side. Once successfully initialized, the client object can operate through the state channel for random number gambling game. The specific interface and return result of client can refer to the content below this document.
 
-### Objects:
+### :sunny: Objects:
 
 1. **channel object**
 ```
@@ -83,7 +83,7 @@ The State channel Client is a universal javascript library that can be invoked o
 ```
 ```
 
-### Methods:
+### :airplane: Methods:
 
 1. **new SCClient** new SCClient
 
@@ -233,7 +233,7 @@ The State channel Client is a universal javascript library that can be invoked o
   scclient.getPayments({betId: 1}, offset, limit);
 ```
 
-### Events 
+### :telephone_receiver: Events 
 
 Events on the channel can be picked up by listening, and then the relevant business logic can be customized
 
